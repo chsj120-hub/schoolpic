@@ -1,0 +1,84 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------- */
+/* 1. Heading / Point (타이틀/게임 UI) - 배달의민족 주아체 */
+/* ------------------------------------------------------------- */
+@font-face {
+  font-family: 'BMJUA';
+  src: url('/fonts/BMJUA.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------- */
+/* 2. Serif (도록/감성 프레임/작가노트) - 마루 부리 체 */
+/* ------------------------------------------------------------- */
+@font-face {
+  font-family: 'MaruBuri';
+  src: url('/fonts/MaruBuri-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaruBuri';
+  src: url('/fonts/MaruBuri-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaruBuri';
+  src: url('/fonts/MaruBuri-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --foreground-rgb: 30, 41, 59;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background-color: #F8FAFC;
+  /* Primary: 기본 UI 및 본문은 Pretendard 최우선 */
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* 폰트 전용 클래스 */
+.font-jua {
+  font-family: 'BMJUA', 'Pretendard', sans-serif !important;
+  letter-spacing: -0.02em;
+}
+
+.font-maruburi, .font-serif {
+  font-family: 'MaruBuri', 'Pretendard', serif !important;
+  letter-spacing: -0.01em;
+}
+
+/* 터치 조작 최적화 및 인터랙티브 요소 불필요 텍스트 드래그 방지 */
+button, a, nav {
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* 스크롤바 숨기기 (모바일 앱 느낌) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
