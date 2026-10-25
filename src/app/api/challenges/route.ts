@@ -20,7 +20,20 @@ export async function GET(request: Request) {
     if (challengesStore[id]) {
       return NextResponse.json({ success: true, challenge: challengesStore[id] });
     }
+
+    // INITIAL_CHALLENGES 직접 검색
+    const direct = INITIAL_CHALLENGES.find((c) => c.id === id);
+    if (direct) {
+      challengesStore[id] = direct;
+      return NextResponse.json({ success: true, challenge: direct });
+    }
+
     const resolved = getChallengeByIdOrTheme(id);
+    if (resolved && resolved.id === id) {
+      challengesStore[id] = resolved;
+      return NextResponse.json({ success: true, challenge: resolved });
+    }
+
     return NextResponse.json({ success: true, challenge: resolved });
   }
 
@@ -48,7 +61,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 서버 스토어에 보존
+    // 서버 스토어에 보존 (전체 학생/학부모 실시간 공유)
     challengesStore[challenge.id] = challenge;
 
     return NextResponse.json({

@@ -5,6 +5,9 @@ import { sanitizeText, validateImageBase64 } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
+// 서버 인메모리 스토어 (챌린지 ID 단위 격리 보존)
+const localSubmissionsStore: any[] = [];
+
 /**
  * 작품 목록 조회 API (GET)
  */
@@ -16,13 +19,18 @@ export async function GET(request: Request) {
 
     const supabase = getSupabaseServerClient();
     if (!supabase) {
-      return NextResponse.json({ success: false, submissions: [], message: "Supabase 미설정" });
+      // 로컬 스토어에서 특정 사진전 작품만 필터링하여 반환
+      const filtered = exhibitionId
+        ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
+        : localSubmissionsStore;
+      return NextResponse.json({ success: true, submissions: filtered, source: "LOCAL_STORE" });
     }
 
     let query = supabase
       .from("submissions")
       .select(`
         id,
+        exhibition_id,
         title,
         artist_note,
         image_url,
@@ -49,16 +57,19 @@ export async function GET(request: Request) {
       `)
       .order("created_at", { ascending: false });
 
-    // 특정 전시회 필터링
-    if (exhibitionId && exhibitionId.length > 20) {
+    // 특정 전시회 필터링 (길이 제약 없이 정확한 매칭)
+    if (exhibitionId) {
       query = query.eq("exhibition_id", exhibitionId);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error("Submissions fetch error:", error);
-      return NextResponse.json({ success: false, submissions: [], error: error.message });
+      console.warn("Submissions DB fetch warning, fallback to local store:", error.message);
+      const filtered = exhibitionId
+        ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
+        : localSubmissionsStore;
+      return NextResponse.json({ success: true, submissions: filtered, source: "LOCAL_FALLBACK" });
     }
 
     // 클라이언트 UI 포맷으로 매핑
@@ -66,6 +77,7 @@ export async function GET(request: Request) {
       const student = row.student_profiles;
       return {
         id: row.id,
+        challengeId: row.exhibition_id || exhibitionId || "",
         studentGrade: student?.grade || 1,
         studentClass: student?.class_num || 1,
         studentNumber: student?.student_num || 1,
@@ -85,9 +97,16 @@ export async function GET(request: Request) {
       };
     });
 
+    // 로컬 스토어에 등록된 해당 사진전 출품작도 병합 (중복 제외)
+    const localMatches = exhibitionId
+      ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
+      : localSubmissionsStore;
+    const dbIds = new Set(formatted.map((f: any) => f.id));
+    const combined = [...formatted, ...localMatches.filter((s) => !dbIds.has(s.id))];
+
     return NextResponse.json({
       success: true,
-      submissions: formatted,
+      submissions: combined,
     });
   } catch (err: any) {
     console.error("Submissions GET error:", err);
@@ -238,17 +257,50 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. 전시회(exhibition) 확인
-    let realExhibitionId: string | null = null;
-    if (challengeId && challengeId.length > 20) {
-      realExhibitionId = challengeId;
+    // 4. 전시회(exhibition) ID 확정 (길이 제약 없이 전달받은 challengeId 그대로 보존)
+    const realExhibitionId: string = challengeId || "challenge-1";
+
+    const localNewSubmission = {
+      id: `sub-${Date.now()}`,
+      challengeId: realExhibitionId,
+      studentGrade: Number(studentGrade) || 1,
+      studentClass: Number(studentClass) || 1,
+      studentNumber: Number(studentNumber) || 1,
+      nickname: studentNickname || "새싹 작가",
+      title: cleanTitle,
+      artistNote: cleanNote,
+      imageUrl: finalImageUrl,
+      votes: 0,
+      studentVotes: 0,
+      teacherVotes: 0,
+      parentVotes: 0,
+      submittedAt: new Date().toISOString().split("T")[0],
+      selectedFrame,
+      student_consent: studentConsent,
+      parent_consent: false,
+      teacher_approval: false,
+      is_public_shared: false,
+    };
+
+    // 서버 로컬 스토어에 우선 등록 (즉시 격리 보장)
+    localSubmissionsStore.unshift(localNewSubmission);
+
+    if (!supabase) {
+      return NextResponse.json({
+        success: true,
+        source: "LOCAL_STORE",
+        submission: localNewSubmission,
+      });
     }
 
-    // 5. submissions 테이블에 INSERT
+    // 5. submissions 테이블에 INSERT 시도
+    // UUID 형식 검사 (DB exhibition_id가 uuid 타입인 경우 호환 처리)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realExhibitionId);
+
     const { data: inserted, error: insertError } = await supabase
       .from("submissions")
       .insert({
-        exhibition_id: realExhibitionId,
+        exhibition_id: isUuid ? realExhibitionId : null,
         student_id: studentId,
         title: cleanTitle,
         artist_note: cleanNote,
@@ -264,23 +316,11 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.error("Supabase submission insert error:", insertError);
+      console.warn("Supabase submission insert warning, using local store:", insertError.message);
       return NextResponse.json({
         success: true,
-        source: "PARTIAL_SUCCESS",
-        submission: {
-          id: `sub-${Date.now()}`,
-          studentGrade: Number(studentGrade) || 1,
-          studentClass: Number(studentClass) || 1,
-          studentNumber: Number(studentNumber) || 1,
-          nickname: studentNickname || "새싹 작가",
-          title,
-          artistNote: artistNote || "",
-          imageUrl: finalImageUrl,
-          votes: 0,
-          submittedAt: new Date().toISOString().split("T")[0],
-          selectedFrame,
-        },
+        source: "LOCAL_STORE",
+        submission: localNewSubmission,
       });
     }
 
@@ -289,6 +329,7 @@ export async function POST(request: Request) {
       source: "SUPABASE_AND_R2",
       submission: {
         id: inserted.id,
+        challengeId: realExhibitionId,
         studentGrade: Number(studentGrade) || 1,
         studentClass: Number(studentClass) || 1,
         studentNumber: Number(studentNumber) || 1,

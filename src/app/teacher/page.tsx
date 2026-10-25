@@ -428,14 +428,35 @@ export default function TeacherAdminPage() {
   const [pinTargetNumber, setPinTargetNumber] = useState<number>(14);
 
   // 신규 사진전 등록
-  const handleCreateChallenge = (newChallenge: Challenge) => {
+  const handleCreateChallenge = async (newChallenge: Challenge) => {
     const updated = [newChallenge, ...challenges];
     setChallenges(updated);
     setSelectedChallengeId(newChallenge.id);
     setSelectedChallengeForQR(newChallenge);
     if (typeof window !== "undefined") {
       localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+
+      // 전역 챌린지 딕셔너리에도 즉시 저장 (학생 접속 링크 /c/[id] 호환 보장)
+      try {
+        const existingAll = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        existingAll[newChallenge.id] = newChallenge;
+        localStorage.setItem("schoolpick_all_challenges", JSON.stringify(existingAll));
+      } catch (e) {
+        console.warn("Failed to save to schoolpick_all_challenges:", e);
+      }
     }
+
+    // 서버 API 동기화 (학생들이 다른 기기나 모바일에서 QR 링크로 접속할 때 즉시 로드되도록 등록)
+    try {
+      await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenge: newChallenge }),
+      });
+    } catch (apiErr) {
+      console.warn("Server challenge sync error, saved locally:", apiErr);
+    }
+
     showToast(
       `🎉 새로운 사진전 [${newChallenge.title}] 개설 완료!`,
       "안내 포스터 출력 및 기안문 다운로드가 가능합니다.",

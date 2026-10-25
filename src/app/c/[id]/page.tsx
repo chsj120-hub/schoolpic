@@ -36,6 +36,21 @@ export default function StudentChallengePage() {
 
   // 현재 챌린지 정보 탐색 (ID 및 18개 테마 코드 동적 지원)
   const [challenge, setChallenge] = useState<Challenge>(() => {
+    // 1차: 브라우저 로컬 스토리지에 저장된 교사 개설 사진전 우선 탐색
+    if (typeof window !== "undefined") {
+      try {
+        const allStored = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        if (allStored[challengeId]) return allStored[challengeId];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("schoolpick_challenges_")) {
+            const list = JSON.parse(localStorage.getItem(key) || "[]");
+            const match = list.find((c: any) => c.id === challengeId);
+            if (match) return match;
+          }
+        }
+      } catch (e) {}
+    }
     return getChallengeByIdOrTheme(challengeId);
   });
 
@@ -43,10 +58,39 @@ export default function StudentChallengePage() {
   useEffect(() => {
     if (!params?.id) return;
     const cid = params.id as string;
-    const resolved = getChallengeByIdOrTheme(cid);
-    setChallenge(resolved);
 
-    // 서버 API 동기화 (원격 개설된 사진전 실시간 수신)
+    // 1) 브라우저 로컬 스토리지에서 신규 개설된 사진전 탐색
+    let localFound: Challenge | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        const allStored = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        if (allStored[cid]) localFound = allStored[cid];
+        if (!localFound) {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("schoolpick_challenges_")) {
+              const list = JSON.parse(localStorage.getItem(key) || "[]");
+              const match = list.find((c: any) => c.id === cid);
+              if (match) {
+                localFound = match;
+                break;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("LocalStorage challenge lookup failed:", err);
+      }
+    }
+
+    if (localFound) {
+      setChallenge(localFound);
+    } else {
+      const resolved = getChallengeByIdOrTheme(cid);
+      setChallenge(resolved);
+    }
+
+    // 2) 서버 API 동기화 (원격 개설된 사진전 실시간 수신)
     fetch(`/api/challenges?id=${cid}`)
       .then((r) => r.json())
       .then((json) => {
@@ -57,38 +101,94 @@ export default function StudentChallengePage() {
       .catch((err) => console.warn("Challenge fetch error:", err));
   }, [params?.id]);
 
-  // 출품작 목록: challenge-1 샘플일 때만 기본 샘플 로드, 신규 개설 사진전은 초기 빈 갤러리([]) 격리 보장
+  // 우리 학교 진행 중인 사진전 전체 목록 (전환 모달용 동적 취합)
+  const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
+
+  useEffect(() => {
+    // 로컬 스토리지 및 서버에서 개설된 모든 사진전 취합
+    if (typeof window !== "undefined") {
+      try {
+        const map: Record<string, Challenge> = {};
+        INITIAL_CHALLENGES.forEach((c) => {
+          map[c.id] = c;
+        });
+
+        const allStored = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        Object.values(allStored).forEach((c: any) => {
+          if (c?.id) map[c.id] = c;
+        });
+
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("schoolpick_challenges_")) {
+            const list = JSON.parse(localStorage.getItem(key) || "[]");
+            list.forEach((c: any) => {
+              if (c?.id) map[c.id] = c;
+            });
+          }
+        }
+
+        setAvailableChallenges(Object.values(map));
+      } catch (e) {}
+    }
+
+    // 서버 API에서도 전체 챌린지 수신
+    fetch("/api/challenges")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.challenges)) {
+          setAvailableChallenges((prev) => {
+            const map: Record<string, Challenge> = {};
+            prev.forEach((c) => {
+              map[c.id] = c;
+            });
+            json.challenges.forEach((c: Challenge) => {
+              map[c.id] = c;
+            });
+            return Object.values(map);
+          });
+        }
+      })
+      .catch(() => {});
+  }, [challenge.schoolCode]);
+
+  // 출품작 목록: 오직 현재 사진전(challengeId)에 출품된 작품만 엄격 격리 로드!
   const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
-    if (params?.id === "challenge-1") {
+    if (challengeId === "challenge-1") {
       return SAMPLE_SUBMISSIONS.filter((s) => s.challengeId === "challenge-1");
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`schoolpick_submissions_${challengeId}`);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
     }
     return [];
   });
 
-  // Supabase 실시간 출품작 동기화
+  // Supabase 실시간 출품작 동기화 (사진전별 완전 격리)
   useEffect(() => {
     async function loadSubmissions() {
       try {
-        const res = await fetch(`/api/submissions?exhibitionId=${params?.id || ""}`);
+        const res = await fetch(`/api/submissions?exhibitionId=${challengeId}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.submissions)) {
-          if (data.submissions.length > 0) {
-            // DB에서 가져온 해당 사진전 전용 출품작만 표시
-            const exhibitionSubmissions = data.submissions.filter(
-              (s: any) => !s.challengeId || s.challengeId === (params?.id || "")
-            );
-            setSubmissions(exhibitionSubmissions);
-          } else if (params?.id !== "challenge-1") {
-            // 신규 개설된 사진전은 출품작이 0건이면 빈 배열 유지
-            setSubmissions([]);
+          // 해당 사진전 challengeId와 일치하는 출품작만 엄격 격리
+          const matching = data.submissions.filter((s: any) => s.challengeId === challengeId);
+          setSubmissions(matching);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
           }
+        } else if (challengeId !== "challenge-1") {
+          // 신규 개설된 사진전은 출품작 0건 빈 갤러리 유지
+          setSubmissions([]);
         }
       } catch (e) {
         console.warn("Could not load submissions from server, fallback to local:", e);
       }
     }
     loadSubmissions();
-  }, [params?.id]);
+  }, [challengeId]);
 
   // 1단계 학생 자발적 동의 (Student Opt-in) 토글 핸들러
   const handleToggleStudentConsent = (submissionId: string) => {
@@ -359,10 +459,10 @@ export default function StudentChallengePage() {
   const [artistRegisterPin, setArtistRegisterPin] = useState<string>("");
   const [artistRegisterError, setArtistRegisterError] = useState<string>("");
 
-  // 1인 1작품 제한: 내가 이미 제출한 작품 찾기 (해당 사진전 challenge.id 내에서만 엄격 격리!)
+  // 1인 1작품 제한: 내가 이미 제출한 작품 찾기 (해당 사진전 challenge.id 내에서만 100% 엄격 격리!)
   const myExistingSubmission = submissions.find(
     (s) =>
-      (s.challengeId === challenge.id || !s.challengeId) &&
+      s.challengeId === challenge.id &&
       s.studentGrade === studentGrade &&
       s.studentClass === studentClass &&
       s.studentNumber === studentNumber
@@ -962,7 +1062,7 @@ export default function StudentChallengePage() {
                 참여하거나 감상하고 싶은 사진전을 선택하세요:
               </p>
               <div className="space-y-2 max-h-64 overflow-y-auto pt-1">
-                {INITIAL_CHALLENGES.map((ch) => (
+                {availableChallenges.map((ch) => (
                   <button
                     key={ch.id}
                     type="button"
@@ -1594,15 +1694,21 @@ export default function StudentChallengePage() {
             };
 
             // 1인 1작품 엄격 유지: 기존 작품이 있으면 교체, 없으면 상단에 추가!
+            let updatedList: PhotoSubmission[] = [];
             if (myExistingSubmission) {
-              setSubmissions((prev) =>
-                prev.map((s) => (s.id === myExistingSubmission.id ? newSubmission : s))
-              );
+              updatedList = submissions.map((s) => (s.id === myExistingSubmission.id ? newSubmission : s));
+              setSubmissions(updatedList);
               alert("🎉 기존 사진이 Cloudflare R2 스토리지와 Supabase에 성공적으로 교체 출품되었습니다!");
             } else {
-              setSubmissions([newSubmission, ...submissions]);
+              updatedList = [newSubmission, ...submissions];
+              setSubmissions(updatedList);
               setChallenge((prev) => ({ ...prev, submissionCount: prev.submissionCount + 1 }));
               alert("🎉 테마 전용 프레임과 스티커가 각인된 사진이 Cloudflare R2와 Supabase에 성공적으로 출품되었습니다!");
+            }
+
+            // 사진전 ID별로 로컬 스토리지에 엄격 격리 보관
+            if (typeof window !== "undefined") {
+              localStorage.setItem(`schoolpick_submissions_${challenge.id}`, JSON.stringify(updatedList));
             }
           }}
         />
