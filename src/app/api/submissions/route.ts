@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       studentClass,
       studentNumber,
       studentNickname,
+      studentPin,
       schoolCode = "JNE-3012",
       schoolName,
       studentConsent = false,
@@ -214,6 +215,12 @@ export async function POST(request: Request) {
 
       if (studentData) {
         studentId = studentData.id;
+        if (studentPin) {
+          await supabase
+            .from("student_profiles")
+            .update({ pin_code_hash: String(studentPin).trim().slice(0, 4) })
+            .eq("id", studentId);
+        }
       } else {
         const { data: newStudent } = await supabase
           .from("student_profiles")
@@ -223,7 +230,7 @@ export async function POST(request: Request) {
             class_num: Number(studentClass) || 1,
             student_num: Number(studentNumber) || 1,
             nickname: studentNickname || "새싹 작가",
-            pin_code_hash: "0000",
+            pin_code_hash: String(studentPin || "1234").trim().slice(0, 4),
           })
           .select("id")
           .single();

@@ -269,6 +269,7 @@ export default function StudentChallengePage() {
             submissionId,
             voterType: "STUDENT",
             voterFingerprint: `student_${studentGrade}_${studentClass}_${studentNumber}`,
+            studentPin,
             action: "UNVOTE",
           }),
         });
@@ -309,6 +310,7 @@ export default function StudentChallengePage() {
             submissionId,
             voterType: "STUDENT",
             voterFingerprint: `student_${studentGrade}_${studentClass}_${studentNumber}`,
+            studentPin,
             action: "VOTE",
           }),
         });
@@ -322,6 +324,11 @@ export default function StudentChallengePage() {
   const isBossRaid = challenge.title.includes("보스 레이드");
   const bossHp = Math.max(0, 100 - (submissions.length * 5));
 
+  // 사진 수정 전용 핀번호 보안 확인 모달 상태
+  const [isPinVerifyModalOpen, setIsPinVerifyModalOpen] = useState<boolean>(false);
+  const [verifyPinInput, setVerifyPinInput] = useState<string>("");
+  const [pinErrorMessage, setPinErrorMessage] = useState<string>("");
+
   // 1인 1작품 제한: 내가 이미 제출한 작품 찾기 (해당 사진전 challenge.id 내에서만 엄격 격리!)
   const myExistingSubmission = submissions.find(
     (s) =>
@@ -331,12 +338,24 @@ export default function StudentChallengePage() {
       s.studentNumber === studentNumber
   );
 
-  // 출품 모달 열기 핸들러 (이미 제출한 경우 확인창 띄움)
+  // 출품 모달 열기 핸들러 (이미 제출한 경우 핀번호 보안 확인창 띄움)
   const handleOpenComposer = () => {
     if (myExistingSubmission) {
-      const confirmReplace = confirm("이미 제출한 사진이 있습니다. 사진을 다시 제출하시겠습니까?\n확인을 누르면 이전에 제출한 사진이 새로운 사진으로 교체됩니다.");
-      if (!confirmReplace) return;
+      setVerifyPinInput("");
+      setPinErrorMessage("");
+      setIsPinVerifyModalOpen(true);
+      return;
     }
+    setIsUploadModalOpen(true);
+  };
+
+  // 핀번호 확인 후 수정 모달 진입
+  const handleConfirmPinForEdit = () => {
+    if (verifyPinInput.trim() !== studentPin) {
+      setPinErrorMessage("안심 핀번호 4자리가 일치하지 않습니다. 다시 확인해 주세요.");
+      return;
+    }
+    setIsPinVerifyModalOpen(false);
     setIsUploadModalOpen(true);
   };
 
@@ -580,6 +599,67 @@ export default function StudentChallengePage() {
               >
                 수정 완료
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 사진 수정/재제출 전용 안심 핀번호 확인 모달 */}
+        {isPinVerifyModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white w-full max-w-xs rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
+              <div className="text-center space-y-1">
+                <div className="w-11 h-11 bg-amber-100 rounded-2xl flex items-center justify-center text-xl mx-auto border-2 border-amber-300">
+                  🔐
+                </div>
+                <h4 className="font-black text-slate-900 text-sm">출품 사진 수정 본인 확인</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  장난이나 타인의 수정을 방지하기 위해 등록했던 <b>안심 핀번호(4자리)</b>를 입력해 주세요.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <input
+                  type="password"
+                  maxLength={4}
+                  autoFocus
+                  placeholder="핀번호 4자리"
+                  value={verifyPinInput}
+                  onChange={(e) => {
+                    setVerifyPinInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 4));
+                    setPinErrorMessage("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleConfirmPinForEdit();
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-center tracking-widest text-base font-black focus:border-amber-400 focus:outline-none"
+                />
+                {pinErrorMessage && (
+                  <p className="text-[10px] text-rose-600 font-bold text-center">
+                    ⚠️ {pinErrorMessage}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPinVerifyModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPinForEdit}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs border border-amber-500 shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  확인 및 사진 변경
+                </button>
+              </div>
+
+              <p className="text-[9px] text-slate-400 text-center">
+                * 핀번호를 잊어버린 경우 선생님께 초기화를 요청하세요.
+              </p>
             </div>
           </div>
         )}
@@ -1191,6 +1271,7 @@ export default function StudentChallengePage() {
                   studentClass,
                   studentNumber,
                   studentNickname,
+                  studentPin,
                   schoolCode: challenge.schoolCode || "JNE-3012",
                   schoolName: challenge.schoolName || "우리 학교",
                   studentConsent: false,

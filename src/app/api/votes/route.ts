@@ -9,6 +9,7 @@ export async function POST(request: Request) {
       submissionId,
       voterType = "STUDENT",
       voterFingerprint = "anon",
+      studentPin,
       action = "VOTE",
     } = await request.json();
 
@@ -28,6 +29,22 @@ export async function POST(request: Request) {
     }
 
     if (action === "VOTE") {
+      // [조작/중복 투표 방어 1]: 동일 유권자(학번 핑거프린트)의 동일 작품 중복 투표 여부 확인
+      const { data: existingVote } = await supabase
+        .from("votes_log")
+        .select("id")
+        .eq("submission_id", submissionId)
+        .eq("voter_fingerprint", voterFingerprint)
+        .maybeSingle();
+
+      if (existingVote) {
+        return NextResponse.json({
+          success: false,
+          alreadyVoted: true,
+          message: "이미 해당 작품에 투표하셨습니다.",
+        });
+      }
+
       // 1. 투표 로그 기록
       await supabase.from("votes_log").insert({
         submission_id: submissionId,
