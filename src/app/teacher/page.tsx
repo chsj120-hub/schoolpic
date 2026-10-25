@@ -641,7 +641,24 @@ export default function TeacherAdminPage() {
     const sorted = [...submissions].sort((a, b) => b.votes - a.votes);
 
     const rows = [
-      ["순위", "시상구분", "학년", "반", "번호", "작가닉네임", "작품제목", "총합득표", "학생투표", "교직원투표", "학부모공감표", "작가노트(30자)", "선생님코멘트", "학부모응원멘트"],
+      [
+        "순위",
+        "시상구분",
+        "상종류(특별상명)",
+        "특별상수여사유",
+        "학년",
+        "반",
+        "번호",
+        "작가닉네임",
+        "작품제목",
+        "총합득표",
+        "학생투표",
+        "교직원투표",
+        "학부모공감표",
+        "작가노트(30자)",
+        "선생님코멘트",
+        "학부모응원멘트",
+      ],
       ...sorted.map((s, idx) => {
         const rank = idx + 1;
         const awardType = s.special_award_title
@@ -657,6 +674,8 @@ export default function TeacherAdminPage() {
         return [
           rank,
           `"${awardType.replace(/"/g, '""')}"`,
+          `"${(s.special_award_title || "").replace(/"/g, '""')}"`,
+          `"${(s.special_award_reason || "").replace(/"/g, '""')}"`,
           s.studentGrade,
           s.studentClass,
           s.studentNumber,
@@ -1847,7 +1866,7 @@ export default function TeacherAdminPage() {
                             <th className="p-3 text-center">학생 투표</th>
                             <th className="p-3 text-center">교직원 투표</th>
                             <th className="p-3 text-center">학부모 공감</th>
-                            <th className="p-3">선생님 지도 코멘트</th>
+                            <th className="p-3">선생님 지도 코멘트 & 특별상 수여 사유</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
@@ -1914,12 +1933,32 @@ export default function TeacherAdminPage() {
                                   <td className="p-3 font-mono font-bold text-rose-700 text-center">
                                     {sub.parentVotes || 0}표
                                   </td>
-                                  <td className="p-3 text-xs">
-                                    {sub.teacher_comment ? (
-                                      <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-bold max-w-xs break-words">
-                                        🧑‍🏫 {sub.teacher_comment}
+                                  <td className="p-3 text-xs space-y-1.5 max-w-xs">
+                                    {/* 교사 지도 코멘트 */}
+                                    {sub.teacher_comment && (
+                                      <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-bold break-words">
+                                        <span className="text-[10px] bg-emerald-200/90 text-emerald-950 px-1.5 py-0.5 rounded font-black mr-1">
+                                          지도 코멘트
+                                        </span>
+                                        {sub.teacher_comment}
                                       </div>
-                                    ) : (
+                                    )}
+
+                                    {/* 교사 직접 지정 특별상 수여 사유 표기 */}
+                                    {sub.special_award_title && (
+                                      <div className="bg-amber-50 text-amber-950 border border-amber-300 px-2.5 py-1.5 rounded-xl font-bold break-words shadow-2xs">
+                                        <div className="flex items-center gap-1 text-[10px] font-black text-amber-800 mb-0.5">
+                                          <Gift className="w-3 h-3 text-amber-600 shrink-0" />
+                                          <span>특별상 수여 사유:</span>
+                                          <span className="text-amber-700 underline font-black">{sub.special_award_title}</span>
+                                        </div>
+                                        <p className="text-[11px] text-amber-900 font-semibold leading-relaxed">
+                                          {sub.special_award_reason || "교내 사진전에서 남다른 창의력과 배려를 발휘하여 본 상을 수여함."}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {!sub.teacher_comment && !sub.special_award_title && (
                                       <span className="text-slate-300 font-bold">-</span>
                                     )}
                                   </td>
