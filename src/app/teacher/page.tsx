@@ -143,43 +143,61 @@ export default function TeacherAdminPage() {
   // 4대 네비게이션 탭 상태 (개발자 계정 접속 시 관제 통계 탭 추가)
   const [activeNav, setActiveNav] = useState<"dashboard" | "create" | "review" | "export" | "analytics">("dashboard");
 
-  // 접수된 출품작 검수 목록
-  const [submissions, setSubmissions] = useState<Array<PhotoSubmission & { isInternalApproved: boolean; isExternalApproved: boolean }>>(() => {
-    return SAMPLE_SUBMISSIONS.map((sub, idx) => ({
-      ...sub,
-      isInternalApproved: true,
-      isExternalApproved: idx === 0,
-      student_consent: sub.student_consent ?? (idx < 2),
-      parent_consent: sub.parent_consent ?? (idx === 0),
-      teacher_approval: sub.teacher_approval ?? (idx === 0),
-      is_public_shared: sub.is_public_shared ?? (idx === 0),
-    }));
-  });
+  // 접수된 출품작 검수 목록 (실제 출품작만 로드하여 초기 빈 갤러리 유지)
+  const [submissions, setSubmissions] = useState<Array<PhotoSubmission & { isInternalApproved: boolean; isExternalApproved: boolean }>>([]);
 
-  // Supabase 실시간 출품작 동기화 (학생들이 R2 및 DB에 출품한 작품 실시간 반영)
+  // 선택된 사진전의 실제 출품작 동기화 (로컬스토리지 및 Supabase R2 서버 연동)
   useEffect(() => {
-    async function loadServerSubmissions() {
+    async function loadSubmissionsForCurrentChallenge() {
+      if (!selectedChallengeId) {
+        setSubmissions([]);
+        return;
+      }
+
+      let loadedList: any[] = [];
+
+      // 1. 브라우저 로컬 저장소에서 해당 사진전 출품작 우선 확인
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(`schoolpick_submissions_${selectedChallengeId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              loadedList = parsed.map((item: any) => ({
+                ...item,
+                isInternalApproved: item.isInternalApproved ?? true,
+                isExternalApproved: item.is_public_shared ?? false,
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn("Local submissions parse error:", e);
+        }
+      }
+
+      // 2. 서버 API에서 해당 사진전 실제 출품작 동기화
       try {
-        const res = await fetch(`/api/submissions?schoolCode=${schoolCode}`);
+        const res = await fetch(`/api/submissions?exhibitionId=${selectedChallengeId}&schoolCode=${schoolCode}`);
         const data = await res.json();
-        if (data.success && Array.isArray(data.submissions) && data.submissions.length > 0) {
-          setSubmissions((prev) => {
-            const dbIds = new Set(data.submissions.map((s: any) => s.id));
-            const existingFiltered = prev.filter((s) => !dbIds.has(s.id));
-            const formatted = data.submissions.map((item: any) => ({
-              ...item,
-              isInternalApproved: item.isInternalApproved ?? true,
-              isExternalApproved: item.is_public_shared ?? false,
-            }));
-            return [...formatted, ...existingFiltered];
-          });
+        if (data.success && Array.isArray(data.submissions)) {
+          const dbItems = data.submissions.map((item: any) => ({
+            ...item,
+            isInternalApproved: item.isInternalApproved ?? true,
+            isExternalApproved: item.is_public_shared ?? false,
+          }));
+          const existingIds = new Set(loadedList.map((s: any) => s.id));
+          const newFromDb = dbItems.filter((s: any) => !existingIds.has(s.id));
+          loadedList = [...loadedList, ...newFromDb];
         }
       } catch (e) {
         console.warn("Could not sync submissions from server:", e);
       }
+
+      setSubmissions(loadedList);
     }
-    loadServerSubmissions();
-  }, [schoolCode]);
+
+    loadSubmissionsForCurrentChallenge();
+  }, [selectedChallengeId, schoolCode]);
 
   // 모달 상태
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -217,9 +235,307 @@ export default function TeacherAdminPage() {
   const [isSpecialAwardModalOpen, setIsSpecialAwardModalOpen] = useState(false);
   const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
   const [isAwardResultDraftModalOpen, setIsAwardResultDraftModalOpen] = useState(false);
-  const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>(SAMPLE_SUBMISSIONS[0].id);
+  const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>("");
   // 시상 명단 10명 단위 페이지네이션 상태
   const [awardPage, setAwardPage] = useState<number>(1);
+
+  // ================= 전국 스쿨픽 실시간 관제 센터 실제 통계 데이터 =================
+  const [analyticsData, setAnalyticsData] = useState<{
+    schoolCount: number;
+    teacherCount: number;
+    studentCount: number;
+    voteCount: number;
+    submissionCount: number;
+    schools: Array<{
+      schoolName: string;
+      schoolCode: string;
+      region: string;
+      teacherEmail: string;
+      teacherRole: string;
+      themes: string[];
+      studentCount: number;
+      voteCount: number;
+      participationRate: string;
+      status: string;
+    }>;
+    topThemes: Array<{
+      rank: number;
+      title: string;
+      icon: string;
+      count: number;
+      percent: number;
+      color: string;
+    }>;
+  }>({
+    schoolCount: 0,
+    teacherCount: 0,
+    studentCount: 0,
+    voteCount: 0,
+    submissionCount: 0,
+    schools: [],
+    topThemes: [],
+  });
+
+  const refreshAnalyticsData = () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const schoolsMap = new Map<string, {
+        schoolName: string;
+        schoolCode: string;
+        region: string;
+        teacherEmail: string;
+        teacherRole: string;
+        themes: Set<string>;
+        studentIds: Set<string>;
+        voteCount: number;
+        submissionCount: number;
+        statuses: Set<string>;
+      }>();
+
+      const uniqueTeachers = new Set<string>();
+      if (teacherEmail) uniqueTeachers.add(teacherEmail.toLowerCase());
+
+      // 1. 현재 로그인된 교사의 학교 등록
+      if (schoolCode) {
+        schoolsMap.set(schoolCode, {
+          schoolName: schoolName || "우리학교",
+          schoolCode,
+          region: schoolCode.startsWith("JNE") ? "전남" : schoolCode.startsWith("TST") ? "테스트" : "전국",
+          teacherEmail: teacherEmail || "-",
+          teacherRole: teacherRole || "담임교사",
+          themes: new Set(),
+          studentIds: new Set(),
+          voteCount: 0,
+          submissionCount: 0,
+          statuses: new Set(),
+        });
+      }
+
+      // 2. 가입/등록된 교사 계정 스캔
+      const scanAccount = (acc: any) => {
+        if (!acc || !acc.schoolCode) return;
+        if (acc.email) uniqueTeachers.add(acc.email.toLowerCase());
+        if (!schoolsMap.has(acc.schoolCode)) {
+          schoolsMap.set(acc.schoolCode, {
+            schoolName: acc.schoolName || "스쿨픽 참여교",
+            schoolCode: acc.schoolCode,
+            region: acc.schoolRegion || "전국",
+            teacherEmail: acc.email || "-",
+            teacherRole: acc.roleGrade || "담당교사",
+            themes: new Set(),
+            studentIds: new Set(),
+            voteCount: 0,
+            submissionCount: 0,
+            statuses: new Set(),
+          });
+        }
+      };
+
+      try {
+        scanAccount(JSON.parse(localStorage.getItem("schoolpick_teacher") || "null"));
+        scanAccount(JSON.parse(localStorage.getItem("schoolpick_teacher_account") || "null"));
+        const regList = JSON.parse(localStorage.getItem("schoolpick_registered_teachers") || "[]");
+        if (Array.isArray(regList)) regList.forEach(scanAccount);
+      } catch (e) {}
+
+      // 3. 사진전 데이터 스캔 (schoolpick_all_challenges 및 schoolpick_challenges_*)
+      const allChallengesList: Challenge[] = [];
+      try {
+        const allChMap = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        if (typeof allChMap === "object" && allChMap !== null) {
+          Object.values(allChMap).forEach((ch: any) => {
+            if (ch && ch.id) allChallengesList.push(ch);
+          });
+        }
+      } catch (e) {}
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("schoolpick_challenges_")) {
+          const sCode = key.replace("schoolpick_challenges_", "");
+          try {
+            const list = JSON.parse(localStorage.getItem(key) || "[]");
+            if (Array.isArray(list)) {
+              list.forEach((ch: Challenge) => {
+                if (!allChallengesList.some((c) => c.id === ch.id)) {
+                  allChallengesList.push(ch);
+                }
+                if (!schoolsMap.has(sCode)) {
+                  schoolsMap.set(sCode, {
+                    schoolName: ch.schoolName || schoolName || "스쿨픽 학교",
+                    schoolCode: sCode,
+                    region: sCode.startsWith("JNE") ? "전남" : sCode.startsWith("TST") ? "테스트" : "전국",
+                    teacherEmail: ch.teacherName ? `${ch.teacherName}` : "-",
+                    teacherRole: "담당교사",
+                    themes: new Set(),
+                    studentIds: new Set(),
+                    voteCount: 0,
+                    submissionCount: 0,
+                    statuses: new Set(),
+                  });
+                }
+              });
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 현재 메모리상의 challenges도 병합
+      challenges.forEach((ch) => {
+        if (!allChallengesList.some((c) => c.id === ch.id)) {
+          allChallengesList.push(ch);
+        }
+      });
+
+      // 사진전 정보를 학교 맵에 매핑
+      allChallengesList.forEach((ch) => {
+        const sCode = ch.schoolCode || schoolCode;
+        if (ch.teacherName) uniqueTeachers.add(ch.teacherName.toLowerCase());
+        const sEntry = schoolsMap.get(sCode) || {
+          schoolName: ch.schoolName || "스쿨픽 학교",
+          schoolCode: sCode,
+          region: "전국",
+          teacherEmail: "-",
+          teacherRole: "담당교사",
+          themes: new Set(),
+          studentIds: new Set(),
+          voteCount: 0,
+          submissionCount: 0,
+          statuses: new Set(),
+        };
+        if ((ch as any).themeTitle) sEntry.themes.add((ch as any).themeTitle);
+        else if (ch.title) sEntry.themes.add(ch.title);
+        sEntry.statuses.add(ch.status === "VOTING" ? "진행 중" : ch.status === "ENDED" ? "투표 종료" : "사진 접수 중");
+        schoolsMap.set(sCode, sEntry);
+      });
+
+      // 4. 출품작 및 투표 데이터 스캔 (schoolpick_submissions_*)
+      const themeCounter: Record<string, number> = {};
+      let totalVotes = 0;
+      let totalSubmissions = 0;
+      const allGlobalStudents = new Set<string>();
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("schoolpick_submissions_")) {
+          const chId = key.replace("schoolpick_submissions_", "");
+          const matchingChallenge = allChallengesList.find((c) => c.id === chId);
+          const targetSchoolCode = matchingChallenge?.schoolCode || schoolCode;
+          const sEntry = schoolsMap.get(targetSchoolCode);
+
+          try {
+            const subs = JSON.parse(localStorage.getItem(key) || "[]");
+            if (Array.isArray(subs)) {
+              subs.forEach((sub: any) => {
+                totalSubmissions++;
+                const v = Number(sub.votes || sub.vote_count || 0);
+                totalVotes += v;
+                const studentKey = `${sub.studentGrade || 1}-${sub.studentClass || 1}-${sub.studentNumber || 1}-${sub.nickname || "anon"}`;
+                allGlobalStudents.add(studentKey);
+
+                if (sEntry) {
+                  sEntry.submissionCount++;
+                  sEntry.voteCount += v;
+                  sEntry.studentIds.add(studentKey);
+                }
+
+                const theme = sub.selectedFrame || (matchingChallenge as any)?.themeTitle || matchingChallenge?.title || "기본 테마";
+                themeCounter[theme] = (themeCounter[theme] || 0) + 1;
+              });
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 현재 메모리상의 submissions도 카운트에 누락되지 않도록 확인
+      if (submissions.length > 0) {
+        const sEntry = schoolsMap.get(schoolCode);
+        submissions.forEach((sub) => {
+          const studentKey = `${sub.studentGrade || 1}-${sub.studentClass || 1}-${sub.studentNumber || 1}-${sub.nickname || "anon"}`;
+          if (!allGlobalStudents.has(studentKey)) {
+            totalSubmissions++;
+            const v = Number(sub.votes || 0);
+            totalVotes += v;
+            allGlobalStudents.add(studentKey);
+            if (sEntry) {
+              sEntry.submissionCount++;
+              sEntry.voteCount += v;
+              sEntry.studentIds.add(studentKey);
+            }
+          }
+        });
+      }
+
+      // 테마 카운터가 비어있고 챌린지가 있다면 챌린지 기준으로 카운트 보완
+      if (Object.keys(themeCounter).length === 0 && allChallengesList.length > 0) {
+        allChallengesList.forEach((ch) => {
+          const th = (ch as any).themeTitle || ch.title || "기본 사진전";
+          themeCounter[th] = (themeCounter[th] || 0) + 1;
+        });
+      }
+
+      // 5. 인기 테마 TOP 5 계산
+      const themeEntries = Object.entries(themeCounter).sort((a, b) => b[1] - a[1]);
+      const totalThemeCount = themeEntries.reduce((sum, [, cnt]) => sum + cnt, 0) || 1;
+      const themeIcons = ["🔥", "🧼", "👥", "🐉", "🍱", "✨", "📸"];
+      const themeColors = ["bg-amber-400", "bg-sky-500", "bg-emerald-500", "bg-rose-500", "bg-purple-500"];
+
+      const topThemes = themeEntries.slice(0, 5).map(([title, count], idx) => ({
+        rank: idx + 1,
+        title,
+        icon: themeIcons[idx % themeIcons.length],
+        count,
+        percent: Math.min(100, Math.round((count / totalThemeCount) * 100)),
+        color: themeColors[idx % themeColors.length],
+      }));
+
+      // 6. 학교 목록 정리
+      const schoolList = Array.from(schoolsMap.values()).map((s) => {
+        const studentCnt = s.studentIds.size || s.submissionCount;
+        const partRate = studentCnt > 0 ? `${Math.min(100, Math.round((s.voteCount / (studentCnt * 3 || 1)) * 100))}%` : "0%";
+        const primaryStatus = s.statuses.has("진행 중")
+          ? "진행 중"
+          : s.statuses.has("투표 종료")
+          ? "투표 종료"
+          : s.statuses.has("사진 접수 중")
+          ? "사진 접수 중"
+          : "운영 중";
+
+        return {
+          schoolName: s.schoolName,
+          schoolCode: s.schoolCode,
+          region: s.region,
+          teacherEmail: s.teacherEmail,
+          teacherRole: s.teacherRole,
+          themes: Array.from(s.themes).slice(0, 3),
+          studentCount: studentCnt,
+          voteCount: s.voteCount,
+          participationRate: partRate,
+          status: primaryStatus,
+        };
+      });
+
+      setAnalyticsData({
+        schoolCount: schoolsMap.size,
+        teacherCount: Math.max(schoolsMap.size, uniqueTeachers.size),
+        studentCount: allGlobalStudents.size,
+        voteCount: totalVotes,
+        submissionCount: totalSubmissions,
+        schools: schoolList,
+        topThemes,
+      });
+    } catch (err) {
+      console.error("Failed to compute analytics data:", err);
+    }
+  };
+
+  // 관제 센터 탭 진입 시 실시간 통계 자동 계산
+  useEffect(() => {
+    if (activeNav === "analytics") {
+      refreshAnalyticsData();
+    }
+  }, [activeNav]);
 
   // ================= 요구사항 10: 교사 코멘트 & 서면 동의 수동 체크 & 얼굴 가리기 =================
   const [editingTeacherComments, setEditingTeacherComments] = useState<Record<string, string>>({});
@@ -487,13 +803,34 @@ export default function TeacherAdminPage() {
 
     // 이미 전국 교류관에 등재되어 있어 취소하려는 경우
     if (target.is_public_shared) {
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === submissionId
-            ? { ...s, teacher_approval: false, is_public_shared: false }
-            : s
-        )
+      const updated = submissions.map((s) =>
+        s.id === submissionId
+          ? { ...s, teacher_approval: false, is_public_shared: false }
+          : s
       );
+      setSubmissions(updated);
+
+      if (typeof window !== "undefined") {
+        if (selectedChallengeId) {
+          localStorage.setItem(`schoolpick_submissions_${selectedChallengeId}`, JSON.stringify(updated));
+        }
+        try {
+          const natRaw = localStorage.getItem("schoolpick_national_submissions");
+          const natList = natRaw ? JSON.parse(natRaw) : [];
+          const natFiltered = natList.filter((item: any) => item.id !== submissionId);
+          localStorage.setItem("schoolpick_national_submissions", JSON.stringify(natFiltered));
+        } catch (e) {}
+      }
+
+      // API PATCH 호출
+      try {
+        fetch("/api/submissions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: submissionId, is_public_shared: false, teacher_approval: false }),
+        }).catch(console.warn);
+      } catch (e) {}
+
       showToast("🔒 전국 스쿨 교류관 등재 해제", "교외 공개가 안전하게 취소되었습니다.", "info");
       return;
     }
@@ -511,18 +848,56 @@ export default function TeacherAdminPage() {
     }
 
     // 2. 승인 처리 (3단계 모두 충족 시 전국 공개)
-    setSubmissions((prev) =>
-      prev.map((s) => {
-        if (s.id === submissionId) {
-          return {
-            ...s,
-            teacher_approval: true,
-            is_public_shared: true,
-          };
-        }
-        return s;
-      })
-    );
+    const updated = submissions.map((s) => {
+      if (s.id === submissionId) {
+        return {
+          ...s,
+          teacher_approval: true,
+          is_public_shared: true,
+        };
+      }
+      return s;
+    });
+    setSubmissions(updated);
+
+    if (typeof window !== "undefined") {
+      if (selectedChallengeId) {
+        localStorage.setItem(`schoolpick_submissions_${selectedChallengeId}`, JSON.stringify(updated));
+      }
+      try {
+        const natRaw = localStorage.getItem("schoolpick_national_submissions");
+        const natList = natRaw ? JSON.parse(natRaw) : [];
+        const natFiltered = natList.filter((item: any) => item.id !== submissionId);
+        natFiltered.unshift({
+          id: target.id,
+          challengeId: target.challengeId || selectedChallengeId || "",
+          votes: target.votes || 0,
+          schoolName: schoolName || "우리학교",
+          studentGrade: target.studentGrade || 1,
+          studentClass: target.studentClass || 1,
+          studentNumber: target.studentNumber || 1,
+          nickname: target.nickname || "새싹 작가",
+          title: target.title || "무제",
+          caption: (target as any).artistNote || target.caption || "",
+          imageUrl: target.imageUrl || "",
+          submittedAt: target.submittedAt || new Date().toISOString().split("T")[0],
+          selectedFrame: target.selectedFrame || (currentChallenge as any)?.themeTitle || currentChallenge?.title || "자유 테마",
+          face_privacy_mode: target.face_privacy_mode,
+          special_award_title: target.special_award_title,
+          cheerStamps: { fire: 0, clap: 0, idea: 0, heart: 0 },
+        });
+        localStorage.setItem("schoolpick_national_submissions", JSON.stringify(natFiltered));
+      } catch (e) {}
+    }
+
+    // API PATCH 호출
+    try {
+      fetch("/api/submissions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: submissionId, is_public_shared: true, teacher_approval: true }),
+      }).catch(console.warn);
+    } catch (e) {}
 
     showToast(
       `🎉 3단계 교사 최종 승인 완료 (${currentSchoolSharedCount + 1}/5장)`,
@@ -2432,7 +2807,8 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      showToast("🔄 전국 통계 실시간 동기화 완료", "전국 28개 초등학교의 실시간 접속 및 투표 데이터가 갱신되었습니다.", "success");
+                      refreshAnalyticsData();
+                      showToast("🔄 전국 통계 실시간 동기화 완료", `전국 ${analyticsData.schoolCount}개교, ${analyticsData.submissionCount}건 출품작이 실시간 집계되었습니다.`, "success");
                     }}
                     className="px-3.5 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white font-black text-xs border border-purple-400/40 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
                   >
@@ -2443,22 +2819,26 @@ export default function TeacherAdminPage() {
                     type="button"
                     onClick={() => {
                       const csvRows = [
-                        ["학교명", "지역", "담당교사", "개최 테마", "학생수", "누적투표수", "투표율", "상태"],
-                        ["목포항도초등학교", "전남 목포", "chsj12@korea.kr", "도플갱어 / 청소비포애프터", "320", "890", "94%", "진행중"],
-                        ["한재초등학교", "전남 담양", "김선생님", "베프 & 짝꿍 챌린지", "142", "420", "98%", "투표종료"],
-                        ["서울서이초등학교", "서울 서초", "박선생님", "교실 레이드 보스", "510", "1240", "88%", "사진접수중"],
-                        ["부산해운대초등학교", "부산 해운대", "최선생님", "급식 인플루언서", "420", "1150", "91%", "진행중"],
-                        ["대전도안초등학교", "대전 유성", "정선생님", "베프 챌린지", "380", "980", "89%", "진행중"],
-                        ["테스트초등학교", "테스트", "총괄관리자", "전체 18개 테마", "50", "150", "100%", "테스트완료"]
+                        ["학교명", "지역", "담당교사", "개최 테마", "참여학생수", "누적투표수", "투표참여율", "상태"],
+                        ...analyticsData.schools.map((s) => [
+                          s.schoolName,
+                          s.region,
+                          s.teacherEmail,
+                          s.themes.length > 0 ? s.themes.join(" / ") : "미개설",
+                          s.studentCount,
+                          s.voteCount,
+                          s.participationRate,
+                          s.status,
+                        ]),
                       ];
-                      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + csvRows.map(e => e.join(",")).join("\n");
+                      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + csvRows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
                       const link = document.createElement("a");
                       link.setAttribute("href", encodeURI(csvContent));
                       link.setAttribute("download", `스쿨픽_전국관제통계_${new Date().toISOString().split("T")[0]}.csv`);
                       document.body.appendChild(link);
                       link.click();
                       document.body.removeChild(link);
-                      showToast("📥 전국 통계 CSV 다운로드 완료", "전국 학교별 데이터 파일이 생성되었습니다.", "success");
+                      showToast("📥 전국 통계 CSV 다운로드 완료", `실제 ${analyticsData.schools.length}개 학교 데이터 파일이 생성되었습니다.`, "success");
                     }}
                     className="px-3.5 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-black text-xs border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
                   >
@@ -2468,36 +2848,51 @@ export default function TeacherAdminPage() {
                 </div>
               </div>
 
-              {/* 핵심 KPI 5종 카드 */}
+              {/* 핵심 KPI 5종 카드 (실제 데이터 기반) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-2">
                 <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
                   <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🏫 참여 학교</span>
-                  <div className="text-lg sm:text-2xl font-black text-white">28<span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">개교</span></div>
-                  <span className="text-[9px] sm:text-[10px] text-emerald-400 font-semibold">↑ 전월 대비 +12</span>
+                  <div className="text-lg sm:text-2xl font-black text-white">
+                    {analyticsData.schoolCount}
+                    <span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">개교</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] text-emerald-400 font-semibold">실시간 집계</span>
                 </div>
 
                 <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
                   <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">👨‍🏫 등록 교사</span>
-                  <div className="text-lg sm:text-2xl font-black text-white">46<span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">명</span></div>
-                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">공직자 100% 인증</span>
+                  <div className="text-lg sm:text-2xl font-black text-white">
+                    {analyticsData.teacherCount}
+                    <span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">명</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">공직자 인증 교사</span>
                 </div>
 
                 <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
                   <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🎒 접속 학생</span>
-                  <div className="text-lg sm:text-2xl font-black text-amber-300">8,920<span className="text-xs sm:text-sm font-bold text-amber-200 ml-1">명</span></div>
-                  <span className="text-[9px] sm:text-[10px] text-amber-400 font-semibold">DAU: 1,420명</span>
+                  <div className="text-lg sm:text-2xl font-black text-amber-300">
+                    {analyticsData.studentCount}
+                    <span className="text-xs sm:text-sm font-bold text-amber-200 ml-1">명</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] text-amber-400 font-semibold">출품/투표 참여</span>
                 </div>
 
                 <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
                   <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🗳️ 총 투표수</span>
-                  <div className="text-lg sm:text-2xl font-black text-sky-300">24,680<span className="text-xs sm:text-sm font-bold text-sky-200 ml-1">표</span></div>
-                  <span className="text-[9px] sm:text-[10px] text-sky-400 font-semibold">학생 79% / 부모 17%</span>
+                  <div className="text-lg sm:text-2xl font-black text-sky-300">
+                    {analyticsData.voteCount}
+                    <span className="text-xs sm:text-sm font-bold text-sky-200 ml-1">표</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] text-sky-400 font-semibold">누적 스티커 투표</span>
                 </div>
 
                 <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1 col-span-2 sm:col-span-1">
                   <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">📸 등록 출품작</span>
-                  <div className="text-lg sm:text-2xl font-black text-rose-300">1,840<span className="text-xs sm:text-sm font-bold text-rose-200 ml-1">장</span></div>
-                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">R2: 420MB</span>
+                  <div className="text-lg sm:text-2xl font-black text-rose-300">
+                    {analyticsData.submissionCount}
+                    <span className="text-xs sm:text-sm font-bold text-rose-200 ml-1">장</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">실제 출품 사진</span>
                 </div>
               </div>
             </div>
@@ -2505,7 +2900,7 @@ export default function TeacherAdminPage() {
             {/* 인기 테마 TOP 5 차트 & 학생 투표 시간대 패턴 분석 (2컬럼) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               
-              {/* 컬럼 1: 인기 사진전 테마 TOP 5 */}
+              {/* 컬럼 1: 인기 사진전 테마 TOP 5 (실제 집계) */}
               <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
                 <div className="flex items-center justify-between border-b-2 border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
@@ -2514,35 +2909,35 @@ export default function TeacherAdminPage() {
                       전국 초등학교 인기 테마 TOP 5
                     </h3>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-500">출품작 수 기준</span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-500">실제 출품작 수 기준</span>
                 </div>
 
                 <div className="space-y-3 pt-1">
-                  {[
-                    { rank: 1, title: "우리 반 베프 & 짝꿍 챌린지", icon: "👭", percent: 42, count: "780건", color: "bg-amber-400" },
-                    { rank: 2, title: "교실 대청소 비포 & 애프터 챌린지 (2분할)", icon: "🧼", percent: 24, count: "440건", color: "bg-sky-500" },
-                    { rank: 3, title: "사물 & 친구 도플갱어 사진전 (2분할)", icon: "👥", percent: 18, count: "330건", color: "bg-emerald-500" },
-                    { rank: 4, title: "교실 레이드! 우리 반 보스를 이겨라", icon: "🐉", percent: 10, count: "185건", color: "bg-rose-500" },
-                    { rank: 5, title: "급식 인플루언서 맛있는 먹방 챌린지", icon: "🍱", percent: 6, count: "105건", color: "bg-purple-500" },
-                  ].map((t) => (
-                    <div key={t.rank} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-black">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${t.rank === 1 ? "bg-amber-400 text-slate-950" : t.rank === 2 ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-600"}`}>
-                            {t.rank}
-                          </span>
-                          <span className="text-slate-900 truncate text-[11px] sm:text-xs">{t.icon} {t.title}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                          <span className="text-slate-500 font-bold text-[10px] sm:text-xs">{t.count}</span>
-                          <span className="font-mono font-black text-slate-900 w-8 text-right text-[11px] sm:text-xs">{t.percent}%</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div className={`${t.color} h-full rounded-full transition-all duration-700`} style={{ width: `${t.percent}%` }} />
-                      </div>
+                  {analyticsData.topThemes.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 font-bold text-xs bg-slate-50 rounded-2xl border border-slate-200">
+                      아직 등록된 사진전 테마가 없습니다.<br />사진전을 개설하고 작품을 출품하면 실시간 랭킹이 표시됩니다.
                     </div>
-                  ))}
+                  ) : (
+                    analyticsData.topThemes.map((t) => (
+                      <div key={t.rank} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-black">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${t.rank === 1 ? "bg-amber-400 text-slate-950" : t.rank === 2 ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-600"}`}>
+                              {t.rank}
+                            </span>
+                            <span className="text-slate-900 truncate text-[11px] sm:text-xs">{t.icon} {t.title}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                            <span className="text-slate-500 font-bold text-[10px] sm:text-xs">{t.count}건</span>
+                            <span className="font-mono font-black text-slate-900 w-8 text-right text-[11px] sm:text-xs">{t.percent}%</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                          <div className={`${t.color} h-full rounded-full transition-all duration-700`} style={{ width: `${t.percent}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -2556,7 +2951,7 @@ export default function TeacherAdminPage() {
                     </h3>
                   </div>
                   <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    서버 부하율 6%
+                    인프라 최적화 가동 중
                   </span>
                 </div>
 
@@ -2595,17 +2990,17 @@ export default function TeacherAdminPage() {
 
             </div>
 
-            {/* 전국 학교별 실시간 운영 현황 테이블 */}
+            {/* 전국 학교별 실시간 운영 현황 테이블 (실제 학교 데이터만 렌더링) */}
             <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
               <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-100 pb-3 gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🏫</span>
                   <h3 className="font-black text-slate-900 text-sm sm:text-base">
-                    전국 학교별 실시간 운영 현황 (최근 등록 순)
+                    전국 학교별 실시간 운영 현황
                   </h3>
                 </div>
                 <div className="text-xs font-bold text-slate-500">
-                  총 <b className="text-slate-900">6개교</b> 모니터링
+                  총 <b className="text-slate-900">{analyticsData.schools.length}개교</b> 등록 및 운영
                 </div>
               </div>
 
@@ -2623,152 +3018,62 @@ export default function TeacherAdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-bold text-slate-800">
-                    <tr className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="font-black text-slate-900">목포항도초등학교</div>
-                        <div className="text-[10px] text-slate-500">전남 목포시</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sky-700 font-mono text-[11px]">chsj12@korea.kr</div>
-                        <div className="text-[10px] text-slate-500">담임교사</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md text-[11px] font-black mr-1">
-                          도플갱어
-                        </span>
-                        <span className="bg-sky-100 text-sky-900 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          청소 비포애프터
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">320명</td>
-                      <td className="p-3 text-center font-mono">890표</td>
-                      <td className="p-3 text-center font-mono font-black text-emerald-600">94%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
-                          진행 중
-                        </span>
-                      </td>
-                    </tr>
-
-                    <tr className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="font-black text-slate-900">한재초등학교</div>
-                        <div className="text-[10px] text-slate-500">전남 담양군</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-slate-900 font-mono text-[11px]">김선생님</div>
-                        <div className="text-[10px] text-slate-500">담임교사</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          베프 & 짝꿍 챌린지
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">142명</td>
-                      <td className="p-3 text-center font-mono">420표</td>
-                      <td className="p-3 text-center font-mono font-black text-emerald-600">98%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-purple-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
-                          투표 종료 (시상)
-                        </span>
-                      </td>
-                    </tr>
-
-                    <tr className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="font-black text-slate-900">서울서이초등학교</div>
-                        <div className="text-[10px] text-slate-500">서울특별시 서초구</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-slate-900 font-mono text-[11px]">박선생님</div>
-                        <div className="text-[10px] text-slate-500">정보부장</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          교실 레이드 보스
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">510명</td>
-                      <td className="p-3 text-center font-mono">1,240표</td>
-                      <td className="p-3 text-center font-mono font-black text-sky-600">88%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full">
-                          사진 접수 중
-                        </span>
-                      </td>
-                    </tr>
-
-                    <tr className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="font-black text-slate-900">부산해운대초등학교</div>
-                        <div className="text-[10px] text-slate-500">부산광역시 해운대구</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-slate-900 font-mono text-[11px]">최선생님</div>
-                        <div className="text-[10px] text-slate-500">담임교사</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          급식 인플루언서
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">420명</td>
-                      <td className="p-3 text-center font-mono">1,150표</td>
-                      <td className="p-3 text-center font-mono font-black text-emerald-600">91%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
-                          진행 중
-                        </span>
-                      </td>
-                    </tr>
-
-                    <tr className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="font-black text-slate-900">대전도안초등학교</div>
-                        <div className="text-[10px] text-slate-500">대전광역시 유성구</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-slate-900 font-mono text-[11px]">정선생님</div>
-                        <div className="text-[10px] text-slate-500">담임교사</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          베프 & 짝꿍 챌린지
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">380명</td>
-                      <td className="p-3 text-center font-mono">980표</td>
-                      <td className="p-3 text-center font-mono font-black text-sky-600">89%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
-                          진행 중
-                        </span>
-                      </td>
-                    </tr>
-
-                    <tr className="hover:bg-amber-50/50 transition-colors bg-slate-50/60">
-                      <td className="p-3">
-                        <div className="font-black text-purple-900">테스트초등학교</div>
-                        <div className="text-[10px] text-slate-500">개발/테스트 전용</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-purple-700 font-mono text-[11px]">총괄 관리자</div>
-                        <div className="text-[10px] text-purple-600 font-bold">chsj120@gmail.com</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md text-[11px] font-black">
-                          전체 18개 테마 (종합)
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono">50명</td>
-                      <td className="p-3 text-center font-mono">150표</td>
-                      <td className="p-3 text-center font-mono font-black text-purple-600">100%</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-slate-800 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
-                          검증 완료
-                        </span>
-                      </td>
-                    </tr>
+                    {analyticsData.schools.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
+                          아직 등록된 학교 운영 데이터가 없습니다.
+                        </td>
+                      </tr>
+                    ) : (
+                      analyticsData.schools.map((sch) => (
+                        <tr key={sch.schoolCode} className="hover:bg-amber-50/50 transition-colors">
+                          <td className="p-3">
+                            <div className="font-black text-slate-900">{sch.schoolName}</div>
+                            <div className="text-[10px] text-slate-500">{sch.region} ({sch.schoolCode})</div>
+                          </td>
+                          <td className="p-3">
+                            <div className="text-sky-700 font-mono text-[11px] truncate max-w-[150px]">
+                              {sch.teacherEmail}
+                            </div>
+                            <div className="text-[10px] text-slate-500">{sch.teacherRole}</div>
+                          </td>
+                          <td className="p-3">
+                            {sch.themes.length === 0 ? (
+                              <span className="text-[10px] text-slate-400 font-normal">미개설</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {sch.themes.map((th, tidx) => (
+                                  <span
+                                    key={tidx}
+                                    className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md text-[10px] font-black"
+                                  >
+                                    {th}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 text-center font-mono">{sch.studentCount}명</td>
+                          <td className="p-3 text-center font-mono">{sch.voteCount}표</td>
+                          <td className="p-3 text-center font-mono font-black text-emerald-600">
+                            {sch.participationRate}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                              sch.status === "진행 중"
+                                ? "bg-emerald-500 text-white"
+                                : sch.status === "투표 종료"
+                                ? "bg-purple-600 text-white"
+                                : sch.status === "사진 접수 중"
+                                ? "bg-amber-400 text-slate-950"
+                                : "bg-slate-200 text-slate-800"
+                            }`}>
+                              {sch.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 export default function NationalExchangePage() {
-  const [submissions, setSubmissions] = useState<PhotoSubmission[]>(NATIONAL_EXCHANGE_SUBMISSIONS);
+  const [submissions, setSubmissions] = useState<PhotoSubmission[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>("ALL");
   const [selectedTheme, setSelectedTheme] = useState<string>("ALL");
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoSubmission | null>(null);
@@ -40,20 +40,94 @@ export default function NationalExchangePage() {
   // 실시간 공용 전시 출품작 동기화 (실제 등록된 수량 현실화)
   useEffect(() => {
     async function loadPublicSubmissions() {
+      const realItems: PhotoSubmission[] = [];
+
+      // 1. 서버 API에서 공식 승인된 전국 교류 사진 조회
       try {
         const res = await fetch("/api/submissions?publicOnly=true");
         const data = await res.json();
-        if (data.success && Array.isArray(data.submissions) && data.submissions.length > 0) {
-          setSubmissions((prev) => {
-            const dbIds = new Set(data.submissions.map((s: any) => s.id));
-            const existingFiltered = prev.filter((s) => !dbIds.has(s.id));
-            return [...data.submissions, ...existingFiltered];
+        if (data.success && Array.isArray(data.submissions)) {
+          data.submissions.forEach((s: any) => {
+            realItems.push({
+              id: s.id,
+              challengeId: s.challengeId || "",
+              votes: s.votes || 0,
+              schoolName: s.schoolName || "우리학교",
+              studentGrade: s.studentGrade || 1,
+              studentClass: s.studentClass || 1,
+              studentNumber: s.studentNumber || 1,
+              nickname: s.nickname || "새싹 작가",
+              title: s.title || "무제",
+              caption: s.artistNote || s.caption || "",
+              imageUrl: s.imageUrl || "",
+              submittedAt: s.submittedAt || new Date().toISOString().split("T")[0],
+              selectedFrame: s.selectedFrame || "자유 테마",
+              face_privacy_mode: s.face_privacy_mode,
+              special_award_title: s.specialAwardTitle || s.special_award_title,
+              cheerStamps: s.cheerStamps || { fire: 0, clap: 0, idea: 0, heart: 0 },
+            });
           });
         }
       } catch (e) {
-        console.warn("Could not sync public submissions:", e);
+        console.warn("Could not sync public submissions from server:", e);
       }
+
+      // 2. 브라우저 로컬 저장소의 실제 교사 승인 전국 교류작 조회 (schoolpick_national_submissions)
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("schoolpick_national_submissions");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((p: PhotoSubmission) => {
+                if (!realItems.some((item) => item.id === p.id)) {
+                  realItems.push(p);
+                }
+              });
+            }
+          }
+
+          // 3. 각 학교/사진전 로컬 스토리지 키(schoolpick_submissions_*)에서도 is_public_shared 확인
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("schoolpick_submissions_")) {
+              try {
+                const list = JSON.parse(localStorage.getItem(key) || "[]");
+                if (Array.isArray(list)) {
+                  list.forEach((sub: any) => {
+                    if (sub.is_public_shared && !realItems.some((item) => item.id === sub.id)) {
+                      realItems.push({
+                        id: sub.id,
+                        challengeId: sub.challengeId || "",
+                        votes: sub.votes || 0,
+                        schoolName: sub.schoolName || "스쿨픽 참여교",
+                        studentGrade: sub.studentGrade || 1,
+                        studentClass: sub.studentClass || 1,
+                        studentNumber: sub.studentNumber || 1,
+                        nickname: sub.nickname || "새싹 작가",
+                        title: sub.title || "무제",
+                        caption: sub.artistNote || sub.caption || "",
+                        imageUrl: sub.imageUrl || "",
+                        submittedAt: sub.submittedAt || new Date().toISOString().split("T")[0],
+                        selectedFrame: sub.selectedFrame || "자유 테마",
+                        face_privacy_mode: sub.face_privacy_mode,
+                        special_award_title: sub.special_award_title,
+                        cheerStamps: sub.cheerStamps || { fire: 0, clap: 0, idea: 0, heart: 0 },
+                      });
+                    }
+                  });
+                }
+              } catch (parseErr) {}
+            }
+          }
+        } catch (localErr) {
+          console.warn("Could not load local national submissions:", localErr);
+        }
+      }
+
+      setSubmissions(realItems);
     }
+
     loadPublicSubmissions();
   }, []);
 
@@ -174,6 +248,10 @@ export default function NationalExchangePage() {
             <button
               type="button"
               onClick={() => {
+                if (filteredList.length === 0) {
+                  alert("현재 전국 교류관에 등재된 우수작이 없습니다.\n선생님 화면에서 [3단계 안심 승인]을 거쳐 [전국 자랑하기 전송]을 완료하면 슬라이드쇼를 진행할 수 있습니다.");
+                  return;
+                }
                 setCurrentSlideIndex(0);
                 setIsPresentationMode(true);
               }}
@@ -370,7 +448,47 @@ export default function NationalExchangePage() {
 
         </div>
 
-        {/* 5-A. 게시판 리스트 뷰 (Board View) */}
+        {/* 5. 출품작 목록 (빈 상태 또는 게시판/카드 뷰) */}
+        {filteredList.length === 0 ? (
+          <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-8 sm:p-14 text-center shadow-[0_6px_0_0_#1E293B] space-y-4">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-sky-100 rounded-3xl border-2 border-slate-900 mx-auto flex items-center justify-center text-3xl sm:text-4xl shadow-inner">
+              📸
+            </div>
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-base sm:text-lg font-black text-slate-900">
+                {submissions.length === 0
+                  ? "현재 전국 스쿨 교류관에 등재된 사진이 없습니다"
+                  : "선택하신 조건(지역/테마)에 해당하는 우수작이 없습니다"}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 font-bold leading-relaxed">
+                각 학교 선생님께서 <b>[3단계 안심 승인 (학생·학부모·교사)]</b>을 마친 후<br className="hidden sm:inline" />
+                <b>[전국 자랑하기 전송]</b>을 완료한 실제 우수작만 이곳에 등재됩니다.
+              </p>
+            </div>
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+              {submissions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRegion("ALL");
+                    setSelectedTheme("ALL");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 font-black text-xs text-slate-800 transition-all cursor-pointer"
+                >
+                  필터 초기화
+                </button>
+              )}
+              <Link
+                href="/teacher"
+                className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 border-2 border-slate-900 font-black text-xs text-slate-950 shadow-[0_2px_0_0_#1E293B] transition-all cursor-pointer"
+              >
+                선생님 관리 화면으로 가기 →
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* 5-A. 게시판 리스트 뷰 (Board View) */}
         {viewMode === "board" && (
           <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 shadow-[0_6px_0_0_#1E293B] overflow-hidden">
             <div className="p-4 bg-slate-50 border-b-2 border-slate-900 flex items-center justify-between">
@@ -640,6 +758,8 @@ export default function NationalExchangePage() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
 
       </main>

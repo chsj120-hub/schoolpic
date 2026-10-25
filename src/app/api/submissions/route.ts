@@ -16,13 +16,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const exhibitionId = searchParams.get("exhibitionId");
     const schoolCode = searchParams.get("schoolCode");
+    const publicOnly = searchParams.get("publicOnly") === "true";
 
     const supabase = getSupabaseServerClient();
     if (!supabase) {
-      // 로컬 스토어에서 특정 사진전 작품만 필터링하여 반환
-      const filtered = exhibitionId
-        ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
-        : localSubmissionsStore;
+      // 로컬 스토어에서 필터링하여 반환
+      let filtered = localSubmissionsStore;
+      if (publicOnly) {
+        filtered = filtered.filter((s) => s.is_public_shared === true);
+      } else if (exhibitionId) {
+        filtered = filtered.filter((s) => s.challengeId === exhibitionId);
+      }
       return NextResponse.json({ success: true, submissions: filtered, source: "LOCAL_STORE" });
     }
 
@@ -57,8 +61,9 @@ export async function GET(request: Request) {
       `)
       .order("created_at", { ascending: false });
 
-    // 특정 전시회 필터링 (길이 제약 없이 정확한 매칭)
-    if (exhibitionId) {
+    if (publicOnly) {
+      query = query.eq("is_public_shared", true);
+    } else if (exhibitionId) {
       query = query.eq("exhibition_id", exhibitionId);
     }
 
@@ -66,9 +71,12 @@ export async function GET(request: Request) {
 
     if (error) {
       console.warn("Submissions DB fetch warning, fallback to local store:", error.message);
-      const filtered = exhibitionId
-        ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
-        : localSubmissionsStore;
+      let filtered = localSubmissionsStore;
+      if (publicOnly) {
+        filtered = filtered.filter((s) => s.is_public_shared === true);
+      } else if (exhibitionId) {
+        filtered = filtered.filter((s) => s.challengeId === exhibitionId);
+      }
       return NextResponse.json({ success: true, submissions: filtered, source: "LOCAL_FALLBACK" });
     }
 
@@ -97,10 +105,13 @@ export async function GET(request: Request) {
       };
     });
 
-    // 로컬 스토어에 등록된 해당 사진전 출품작도 병합 (중복 제외)
-    const localMatches = exhibitionId
-      ? localSubmissionsStore.filter((s) => s.challengeId === exhibitionId)
-      : localSubmissionsStore;
+    // 로컬 스토어에 등록된 출품작도 병합 (중복 제외)
+    let localMatches = localSubmissionsStore;
+    if (publicOnly) {
+      localMatches = localMatches.filter((s) => s.is_public_shared === true);
+    } else if (exhibitionId) {
+      localMatches = localMatches.filter((s) => s.challengeId === exhibitionId);
+    }
     const dbIds = new Set(formatted.map((f: any) => f.id));
     const combined = [...formatted, ...localMatches.filter((s) => !dbIds.has(s.id))];
 
@@ -351,5 +362,46 @@ export async function POST(request: Request) {
       { success: false, message: err.message || "작품 출품 처리 실패" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * 작품 상태 변경 API (PATCH) - 전국 교류관 공개(is_public_shared), 교사 승인, 특별상 수정
+ */
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, is_public_shared, teacher_approval, special_award_title, special_award_reason } = body;
+    if (!id) {
+      return NextResponse.json({ success: false, message: "작품 ID가 필요합니다." }, { status: 400 });
+    }
+
+    const supabase = getSupabaseServerClient();
+    if (supabase) {
+      const updateData: any = {};
+      if (typeof is_public_shared === "boolean") updateData.is_public_shared = is_public_shared;
+      if (typeof teacher_approval === "boolean") updateData.teacher_approval = teacher_approval;
+      if (special_award_title !== undefined) updateData.special_award_title = special_award_title;
+      if (special_award_reason !== undefined) updateData.special_award_reason = special_award_reason;
+
+      const { error } = await supabase.from("submissions").update(updateData).eq("id", id);
+      if (error) {
+        console.warn("Submissions PATCH Supabase warning:", error.message);
+      }
+    }
+
+    // 로컬 스토어 캐시 동기화
+    const localIdx = localSubmissionsStore.findIndex((s) => s.id === id);
+    if (localIdx >= 0) {
+      if (typeof is_public_shared === "boolean") localSubmissionsStore[localIdx].is_public_shared = is_public_shared;
+      if (typeof teacher_approval === "boolean") localSubmissionsStore[localIdx].teacher_approval = teacher_approval;
+      if (special_award_title !== undefined) localSubmissionsStore[localIdx].specialAwardTitle = special_award_title;
+      if (special_award_reason !== undefined) localSubmissionsStore[localIdx].specialAwardReason = special_award_reason;
+    }
+
+    return NextResponse.json({ success: true, id, is_public_shared });
+  } catch (err: any) {
+    console.error("Submissions PATCH error:", err);
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }
