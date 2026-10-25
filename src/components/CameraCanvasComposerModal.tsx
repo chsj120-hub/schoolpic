@@ -690,10 +690,24 @@ export default function CameraCanvasComposerModal({
         ctx.translate(posX, posY);
 
         if (stk.imageSrc && imgMap.has(stk.uid)) {
-          // 실물 투명 이미지 스티커 렌더링 (가로세로 120px)
+          // 실물 투명 이미지 스티커 렌더링 (원본 가로세로 비율 자동 유지)
           const stickerImg = imgMap.get(stk.uid)!;
-          const sSize = 120;
-          ctx.drawImage(stickerImg, -sSize / 2, -sSize / 2, sSize, sSize);
+          const aspect =
+            stickerImg.width && stickerImg.height
+              ? stickerImg.width / stickerImg.height
+              : 1;
+          let drawW = 120;
+          let drawH = 120;
+          if (aspect >= 1) {
+            // 가로형 로고 (유튜브, 틱톡 등)
+            drawW = Math.min(220, 85 * aspect);
+            drawH = drawW / aspect;
+          } else {
+            // 세로형 로고
+            drawH = 120;
+            drawW = drawH * aspect;
+          }
+          ctx.drawImage(stickerImg, -drawW / 2, -drawH / 2, drawW, drawH);
         } else {
           // 텍스트/이모지 배지 스티커 렌더링
           ctx.font = "900 24px sans-serif";
@@ -959,7 +973,7 @@ export default function CameraCanvasComposerModal({
                           <img
                             src={stk.imageSrc}
                             alt={stk.text}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-contain pointer-events-none drop-shadow-md select-none"
+                            className="h-10 sm:h-12 w-auto max-w-[150px] sm:max-w-[180px] object-contain pointer-events-none drop-shadow-md select-none"
                           />
                           {/* 스티커 삭제 버튼 */}
                           <button
@@ -1071,7 +1085,7 @@ export default function CameraCanvasComposerModal({
                       }}
                       className="shrink-0 px-2.5 py-1.5 rounded-xl border text-[11px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                     >
-                      <img src={stk.imageSrc} alt="" className="w-5 h-5 object-contain pointer-events-none" />
+                      <img src={stk.imageSrc} alt="" className="h-4 sm:h-5 w-auto max-w-[36px] object-contain pointer-events-none" />
                       <span>{stk.name}</span>
                       <span className="text-[9px] opacity-75">+추가</span>
                     </button>
