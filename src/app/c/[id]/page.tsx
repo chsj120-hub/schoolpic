@@ -329,6 +329,12 @@ export default function StudentChallengePage() {
   const [verifyPinInput, setVerifyPinInput] = useState<string>("");
   const [pinErrorMessage, setPinErrorMessage] = useState<string>("");
 
+  // 사진 첫 출품 전 작가 닉네임 & 핀번호 등록 모달 상태
+  const [isArtistRegisterModalOpen, setIsArtistRegisterModalOpen] = useState<boolean>(false);
+  const [artistRegisterNickname, setArtistRegisterNickname] = useState<string>("");
+  const [artistRegisterPin, setArtistRegisterPin] = useState<string>("");
+  const [artistRegisterError, setArtistRegisterError] = useState<string>("");
+
   // 1인 1작품 제한: 내가 이미 제출한 작품 찾기 (해당 사진전 challenge.id 내에서만 엄격 격리!)
   const myExistingSubmission = submissions.find(
     (s) =>
@@ -338,14 +344,47 @@ export default function StudentChallengePage() {
       s.studentNumber === studentNumber
   );
 
-  // 출품 모달 열기 핸들러 (이미 제출한 경우 핀번호 보안 확인창 띄움)
+  // 출품 모달 열기 핸들러 (수정 시 핀번호 확인 / 첫 출품 시 닉네임&핀번호 필수 설정)
   const handleOpenComposer = () => {
+    // 1) 이미 제출한 사진이 있는 경우 -> 핀번호 확인 모달 오픈
     if (myExistingSubmission) {
       setVerifyPinInput("");
       setPinErrorMessage("");
       setIsPinVerifyModalOpen(true);
       return;
     }
+
+    // 2) 처음 사진을 올리는 경우 -> 작가 닉네임과 4자리 핀번호가 없으면 설정 모달 오픈
+    const isPinNotReady = !studentPin || studentPin.trim().length !== 4;
+    const isNicknameNotReady = !studentNickname || studentNickname.trim().endsWith("번");
+
+    if (isPinNotReady || isNicknameNotReady) {
+      setArtistRegisterNickname(isNicknameNotReady ? "" : studentNickname);
+      setArtistRegisterPin("");
+      setArtistRegisterError("");
+      setIsArtistRegisterModalOpen(true);
+      return;
+    }
+
+    setIsUploadModalOpen(true);
+  };
+
+  // 작가 닉네임 & 핀번호 설정 완료 후 출품 모달 진입
+  const handleConfirmArtistRegister = () => {
+    const cleanNick = artistRegisterNickname.trim();
+    const cleanPin = artistRegisterPin.trim().replace(/[^0-9]/g, "").slice(0, 4);
+
+    if (!cleanNick) {
+      setArtistRegisterError("작가 닉네임을 입력해 주세요.");
+      return;
+    }
+    if (cleanPin.length !== 4) {
+      setArtistRegisterError("안심 핀번호 숫자 4자리를 정확히 입력해 주세요.");
+      return;
+    }
+
+    handleSaveStudentSession(studentGrade, studentClass, studentNumber, cleanNick, cleanPin);
+    setIsArtistRegisterModalOpen(false);
     setIsUploadModalOpen(true);
   };
 
@@ -431,7 +470,7 @@ export default function StudentChallengePage() {
           </div>
         </header>
 
-        {/* 첫 방문 학생 온보딩 모달 (학번, 닉네임, 안심 핀번호 등록) */}
+        {/* 첫 방문 학생 간편 입장 모달 (학년 / 반 / 번호만 입력하면 즉시 입장 및 투표 가능) */}
         {isOnboardingModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
@@ -439,9 +478,10 @@ export default function StudentChallengePage() {
                 <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-2xl mx-auto border-2 border-amber-300">
                   🎒
                 </div>
-                <h4 className="font-black text-slate-900 text-base">학생 본인 확인 & 작가 등록</h4>
+                <h4 className="font-black text-slate-900 text-base">학생 본인 확인 (학년 · 반 · 번호)</h4>
                 <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                  초상권과 개인정보 안심 원칙에 따라 <b>실명 없이 학년, 반, 번호, 작가 닉네임, 안심 핀번호</b>만 사용합니다!
+                  사진 감상 및 투표를 위해 <b>학년, 반, 번호</b>를 입력해주세요!<br />
+                  <span className="text-amber-700 font-bold">* 사진을 직접 출품할 때만 작가 닉네임과 핀번호를 설정합니다.</span>
                 </p>
               </div>
 
@@ -457,7 +497,7 @@ export default function StudentChallengePage() {
                         placeholder="학년"
                         value={tempGrade}
                         onChange={(e) => setTempGrade(Number(e.target.value))}
-                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                        className="w-full px-2 py-2.5 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
                       />
                       <span className="text-[10px] text-slate-400 text-center block mt-0.5">학년</span>
                     </div>
@@ -469,7 +509,7 @@ export default function StudentChallengePage() {
                         placeholder="반"
                         value={tempClass}
                         onChange={(e) => setTempClass(Number(e.target.value))}
-                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                        className="w-full px-2 py-2.5 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
                       />
                       <span className="text-[10px] text-slate-400 text-center block mt-0.5">반</span>
                     </div>
@@ -481,51 +521,105 @@ export default function StudentChallengePage() {
                         placeholder="번호"
                         value={tempNumber}
                         onChange={(e) => setTempNumber(Number(e.target.value))}
-                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                        className="w-full px-2 py-2.5 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
                       />
                       <span className="text-[10px] text-slate-400 text-center block mt-0.5">번호</span>
                     </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-black text-slate-700 block mb-1">작가 닉네임 (최대 10자)</label>
-                  <input
-                    type="text"
-                    maxLength={10}
-                    placeholder="예: 5반 날다람쥐, 포토장인"
-                    value={tempNickname}
-                    onChange={(e) => setTempNickname(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-xs font-black focus:border-amber-400 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-black text-slate-700">안심 핀번호 (숫자 4자리)</label>
-                    <span className="text-[10px] text-amber-600 font-bold">*학부모 동의 연계용</span>
-                  </div>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    placeholder="4자리 숫자 (예: 1234)"
-                    value={tempPin}
-                    onChange={(e) => setTempPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-center tracking-widest text-sm font-black focus:border-amber-400 focus:outline-none"
-                  />
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => {
-                  handleSaveStudentSession(tempGrade, tempClass, tempNumber, tempNickname, tempPin);
+                  const defaultNick = `${tempGrade}학년 ${tempClass}반 ${tempNumber}번`;
+                  handleSaveStudentSession(tempGrade, tempClass, tempNumber, defaultNick, "");
                   setIsOnboardingModalOpen(false);
                 }}
                 className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-sm border-2 border-amber-500 shadow-arcade-amber cursor-pointer active:scale-95 transition-all mt-2"
               >
-                스쿨픽 사진전 시작하기 🚀
+                갤러리 입장 & 투표 시작하기 🚀
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 사진 첫 출품 전 전용: 작가 닉네임 & 안심 핀번호(4자리) 필수 등록 모달 */}
+        {isArtistRegisterModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-2xl mx-auto border-2 border-amber-300">
+                  📸
+                </div>
+                <h4 className="font-black text-slate-900 text-base">작가 등록 & 안심 핀번호 설정</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  사진을 출품하려면 출품작에 표시될 <b>작가 닉네임</b>과<br />
+                  향후 사진 수정 및 보호를 위한 <b>안심 핀번호(4자리)</b>를 설정해야 합니다.
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                <div>
+                  <label className="text-[11px] font-black text-slate-700 block mb-1">
+                    작가 닉네임 (최대 10자)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    placeholder="예: 5반 날다람쥐, 포토장인"
+                    value={artistRegisterNickname}
+                    onChange={(e) => {
+                      setArtistRegisterNickname(e.target.value);
+                      setArtistRegisterError("");
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-xs font-black focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-black text-slate-700">
+                      안심 핀번호 (숫자 4자리)
+                    </label>
+                    <span className="text-[10px] text-amber-600 font-bold">*수정 및 학부모 확인용</span>
+                  </div>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    placeholder="4자리 숫자 입력 (예: 1234)"
+                    value={artistRegisterPin}
+                    onChange={(e) => {
+                      setArtistRegisterPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4));
+                      setArtistRegisterError("");
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-center tracking-widest text-base font-black focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                {artistRegisterError && (
+                  <p className="text-[11px] text-rose-600 font-bold text-center">
+                    ⚠️ {artistRegisterError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsArtistRegisterModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmArtistRegister}
+                  className="flex-2 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs border border-amber-500 shadow-arcade-amber cursor-pointer active:scale-95 transition-all"
+                >
+                  등록 완료 & 사진 찍기 📸
+                </button>
+              </div>
             </div>
           </div>
         )}

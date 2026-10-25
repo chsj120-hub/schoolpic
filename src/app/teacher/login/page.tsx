@@ -34,8 +34,8 @@ export default function TeacherAuthPage() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
 
   // ===================== [로그인 상태] =====================
-  const [loginEmail, setLoginEmail] = useState("chsj120@gmail.com");
-  const [loginPassword, setLoginPassword] = useState("blue7412");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [isMagicLinkSent, setIsMagicLinkSent] = useState(false);
   const [magicLinkInfo, setMagicLinkInfo] = useState<{ url?: string; message?: string } | null>(null);
@@ -124,45 +124,6 @@ export default function TeacherAuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("pass1234");
   const [teacherRole, setTeacherRole] = useState("5학년 2반 담임");
   const [step4Error, setStep4Error] = useState("");
-
-  // -------------------------------------------------------------
-  // 개발자/관리자 테스트 계정 (chsj120@gmail.com / blue7412) 1초 퀵 로그인
-  // -------------------------------------------------------------
-  const handleQuickDevLogin = async () => {
-    setLoginEmail("chsj120@gmail.com");
-    setLoginPassword("blue7412");
-
-    const devAccount: TeacherAccount = {
-      email: "chsj120@gmail.com",
-      name: "관리자 선생님",
-      schoolId: "sch-test-001",
-      schoolName: "테스트초등학교",
-      schoolCode: "TST-7777",
-      schoolRegion: "서울",
-      schoolLevel: "E",
-      roleGrade: "총괄 관리자",
-      isJoinedExisting: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      await fetch("/api/auth/teacher", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "LOGIN",
-          email: "chsj120@gmail.com",
-          password: "blue7412",
-        }),
-      });
-    } catch (e) {
-      console.warn("DB login sync fallback:", e);
-    }
-
-    localStorage.setItem("schoolpick_teacher", JSON.stringify(devAccount));
-    localStorage.setItem("schoolpick_teacher_account", JSON.stringify(devAccount));
-    router.push("/teacher");
-  };
 
   // -------------------------------------------------------------
   // 로그인 처리 (Supabase DB 연동)
@@ -449,29 +410,6 @@ export default function TeacherAuthPage() {
                 <p className="text-xs text-slate-500 font-bold">
                   가입 시 등록한 공직자 메일 아이디와 비밀번호를 입력해주세요.
                 </p>
-              </div>
-
-              {/* [개발자/관리자 공식 테스트 계정 퀵 로그인 배너] */}
-              <div className="bg-amber-50/90 border-[2px] border-amber-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
-                <div className="space-y-0.5 min-w-0">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
-                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span>개발자·관리자 전용 테스트 계정</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-amber-900 truncate">
-                    테스트초등학교 (TST-7777) | chsj120@gmail.com
-                  </p>
-                  <p className="text-[10px] font-mono font-bold text-amber-700">
-                    비밀번호: blue7412 (자동 세팅)
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleQuickDevLogin}
-                  className="py-2 px-3.5 rounded-xl bg-[#FFC72C] hover:bg-amber-300 active:translate-y-0.5 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] cursor-pointer shrink-0 transition-all text-center"
-                >
-                  ⚡ 1초 자동 로그인
-                </button>
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-3">
