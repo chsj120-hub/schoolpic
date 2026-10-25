@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 복붙 스탬프 도장 -->
+      <rect x="35" y="75" width="85" height="105" rx="12" fill="#E0F2FE" stroke="#0284C7" stroke-width="6"/>
+      <text x="77" y="140" font-family="sans-serif" font-weight="900" font-size="28" fill="#0369A1" text-anchor="middle">Ctrl C</text>
+      <rect x="135" y="75" width="85" height="105" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="6"/>
+      <text x="177" y="140" font-family="sans-serif" font-weight="900" font-size="28" fill="#B45309" text-anchor="middle">Ctrl V</text>
+    </svg>

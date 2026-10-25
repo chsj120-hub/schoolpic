@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <g>
+        <!-- 빗자루 손잡이 -->
+        <line x1="200" y1="50" x2="100" y2="150" stroke="#78350F" stroke-width="12" stroke-linecap="round"/>
+        <!-- 빗자루 털 -->
+        <polygon points="100,150 50,180 60,225 110,215 120,170" fill="#F59E0B" stroke="#B45309" stroke-width="5" stroke-linejoin="round"/>
+        <line x1="75" y1="185" x2="80" y2="220" stroke="#B45309" stroke-width="3"/>
+        <line x1="95" y1="175" x2="98" y2="215" stroke="#B45309" stroke-width="3"/>
+        <!-- 청소 별빛 -->
+        <polygon points="50,120 55,135 70,140 55,145 50,160 45,145 30,140 45,135" fill="#38BDF8"/>
+        <polygon points="170,170 174,180 185,185 174,190 170,200 166,190 155,185 166,180" fill="#FDE047"/>
+      </g>
+    </svg>

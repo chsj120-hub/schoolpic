@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 챔피언 골드 리본 메달 -->
+      <!-- 리본 -->
+      <polygon points="128,85 70,25 105,25 128,65" fill="#EF4444"/>
+      <polygon points="128,85 186,25 151,25 128,65" fill="#2563EB"/>
+      <!-- 골드 메달 -->
+      <circle cx="128" cy="145" r="65" fill="#FDE047" stroke="#B45309" stroke-width="8"/>
+      <circle cx="128" cy="145" r="50" fill="#F59E0B" stroke="#B45309" stroke-width="3"/>
+      <text x="128" y="165" font-family="sans-serif" font-weight="900" font-size="52" fill="#78350F" text-anchor="middle">1</text>
+    </svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 차원 이동 마법 포털 -->
+      <ellipse cx="128" cy="128" rx="100" ry="80" fill="none" stroke="#8B5CF6" stroke-width="12" stroke-dasharray="25,15"/>
+      <ellipse cx="128" cy="128" rx="75" ry="60" fill="none" stroke="#EC4899" stroke-width="10" stroke-dasharray="20,10"/>
+      <ellipse cx="128" cy="128" rx="45" ry="35" fill="#FDE047" stroke="#3B82F6" stroke-width="8"/>
+      <polygon points="128,105 134,120 150,128 134,136 128,151 122,136 106,128 122,120" fill="#FFFFFF"/>
+    </svg>

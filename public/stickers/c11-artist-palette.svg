@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 팔레트와 붓 -->
+      <path d="M60 160 C30 110 60 50 128 50 C196 50 226 100 206 150 C186 200 130 210 110 190 C90 170 80 180 60 160 Z" fill="#FBBF24" stroke="#78350F" stroke-width="7"/>
+      <!-- 물감 방울들 -->
+      <circle cx="95" cy="85" r="14" fill="#EF4444"/>
+      <circle cx="135" cy="75" r="14" fill="#3B82F6"/>
+      <circle cx="175" cy="95" r="14" fill="#10B981"/>
+      <circle cx="185" cy="140" r="14" fill="#8B5CF6"/>
+      <circle cx="135" cy="180" r="16" fill="#FFFBEB" stroke="#78350F" stroke-width="4"/>
+    </svg>

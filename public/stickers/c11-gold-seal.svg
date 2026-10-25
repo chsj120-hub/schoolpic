@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 미술관 공식 골드 인장 -->
+      <circle cx="128" cy="128" r="95" fill="#F59E0B" stroke="#78350F" stroke-width="8"/>
+      <circle cx="128" cy="128" r="82" fill="#FDE047" stroke="#B45309" stroke-width="3" stroke-dasharray="6,4"/>
+      <polygon points="128,65 142,105 185,105 150,130 165,170 128,145 91,170 106,130 71,105 114,105" fill="#EA580C"/>
+      <text x="128" y="200" font-family="serif" font-weight="bold" font-size="16" fill="#78350F" text-anchor="middle">EXHIBITION 2026</text>
+    </svg>

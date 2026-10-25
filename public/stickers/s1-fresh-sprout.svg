@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 싱그러운 파릇파릇 새싹 -->
+      <path d="M128 220 Q128 140 100 110 C65 110 40 140 70 170 C100 185 125 180 128 220 Z" fill="#22C55E" stroke="#14532D" stroke-width="6"/>
+      <path d="M128 160 Q150 110 195 105 C220 135 195 170 155 170 Q135 170 128 220 Z" fill="#4ADE80" stroke="#14532D" stroke-width="6"/>
+      <path d="M128 220 L128 140" stroke="#15803D" stroke-width="8" stroke-linecap="round"/>
+      <ellipse cx="128" cy="225" rx="40" ry="12" fill="#78350F"/>
+    </svg>

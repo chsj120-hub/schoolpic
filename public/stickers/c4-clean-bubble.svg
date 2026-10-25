@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <radialGradient id="bubbleGrad" cx="35%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+          <stop offset="60%" stop-color="#38BDF8" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#0284C7" stop-opacity="0.8"/>
+        </radialGradient>
+      </defs>
+      <!-- 큰 거품 -->
+      <circle cx="110" cy="130" r="75" fill="url(#bubbleGrad)" stroke="#E0F2FE" stroke-width="4"/>
+      <ellipse cx="85" cy="95" rx="20" ry="12" fill="#FFFFFF" transform="rotate(-30, 85, 95)"/>
+      <!-- 보조 거품 -->
+      <circle cx="185" cy="80" r="38" fill="url(#bubbleGrad)" stroke="#E0F2FE" stroke-width="3"/>
+      <ellipse cx="170" cy="65" rx="10" ry="6" fill="#FFFFFF" transform="rotate(-30, 170, 65)"/>
+      <circle cx="195" cy="170" r="25" fill="url(#bubbleGrad)" stroke="#E0F2FE" stroke-width="2"/>
+    </svg>

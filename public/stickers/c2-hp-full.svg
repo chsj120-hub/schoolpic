@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <filter id="pixelShadow"><feDropShadow dx="0" dy="3" stdDeviation="2" flood-opacity="0.4"/></filter>
+      </defs>
+      <g filter="url(#pixelShadow)">
+        <!-- 픽셀 하트 3개 나열 -->
+        <g transform="translate(18, 90) scale(0.65)">
+          <path d="M40 10 L80 10 L80 30 L100 30 L100 70 L80 70 L80 90 L60 90 L60 110 L40 110 L40 90 L20 90 L20 70 L0 70 L0 30 L20 30 L20 10 L40 10 Z" fill="#EF4444" stroke="#991B1B" stroke-width="6"/>
+          <rect x="20" y="30" width="20" height="20" fill="#FFFFFF"/>
+        </g>
+        <g transform="translate(88, 75) scale(0.85)">
+          <path d="M40 10 L80 10 L80 30 L100 30 L100 70 L80 70 L80 90 L60 90 L60 110 L40 110 L40 90 L20 90 L20 70 L0 70 L0 30 L20 30 L20 10 L40 10 Z" fill="#EF4444" stroke="#991B1B" stroke-width="6"/>
+          <rect x="20" y="30" width="20" height="20" fill="#FFFFFF"/>
+        </g>
+        <g transform="translate(178, 90) scale(0.65)">
+          <path d="M40 10 L80 10 L80 30 L100 30 L100 70 L80 70 L80 90 L60 90 L60 110 L40 110 L40 90 L20 90 L20 70 L0 70 L0 30 L20 30 L20 10 L40 10 Z" fill="#EF4444" stroke="#991B1B" stroke-width="6"/>
+          <rect x="20" y="30" width="20" height="20" fill="#FFFFFF"/>
+        </g>
+      </g>
+    </svg>

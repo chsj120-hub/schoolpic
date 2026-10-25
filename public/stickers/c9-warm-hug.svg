@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 따뜻한 감동 하트 & 손길 -->
+      <path d="M128 60 C105 25 45 40 45 95 C45 150 115 195 128 210 C141 195 211 150 211 95 C211 40 151 25 128 60 Z" fill="#F43F5E" stroke="#881337" stroke-width="7"/>
+      <circle cx="100" cy="110" r="16" fill="#FDE047"/>
+      <circle cx="156" cy="110" r="16" fill="#FDE047"/>
+      <path d="M100 145 Q128 170 156 145" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+    </svg>

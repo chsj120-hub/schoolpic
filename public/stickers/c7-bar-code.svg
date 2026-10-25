@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 하이틴 매거진 바코드 스티커 -->
+      <rect x="25" y="65" width="206" height="126" rx="12" fill="#FFFFFF" stroke="#0F172A" stroke-width="6"/>
+      <!-- 바코드 라인들 -->
+      <line x1="45" y1="85" x2="45" y2="155" stroke="#0F172A" stroke-width="8"/>
+      <line x1="62" y1="85" x2="62" y2="155" stroke="#0F172A" stroke-width="4"/>
+      <line x1="75" y1="85" x2="75" y2="155" stroke="#0F172A" stroke-width="12"/>
+      <line x1="98" y1="85" x2="98" y2="155" stroke="#0F172A" stroke-width="6"/>
+      <line x1="115" y1="85" x2="115" y2="155" stroke="#0F172A" stroke-width="4"/>
+      <line x1="130" y1="85" x2="130" y2="155" stroke="#0F172A" stroke-width="14"/>
+      <line x1="155" y1="85" x2="155" y2="155" stroke="#0F172A" stroke-width="6"/>
+      <line x1="172" y1="85" x2="172" y2="155" stroke="#0F172A" stroke-width="10"/>
+      <line x1="195" y1="85" x2="195" y2="155" stroke="#0F172A" stroke-width="6"/>
+      <line x1="210" y1="85" x2="210" y2="155" stroke="#0F172A" stroke-width="4"/>
+      <text x="128" y="178" font-family="monospace" font-weight="bold" font-size="14" fill="#0F172A" text-anchor="middle">SCHOOL-VOGUE-2026</text>
+    </svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 요리사 모자 -->
+      <path d="M70 160 C40 160 30 110 65 95 C60 60 110 40 128 70 C146 40 196 60 191 95 C226 110 216 160 186 160 Z" fill="#FFFFFF" stroke="#0F172A" stroke-width="8" stroke-linejoin="round"/>
+      <rect x="70" y="160" width="116" height="40" rx="8" fill="#EA580C" stroke="#0F172A" stroke-width="8"/>
+      <!-- 별 3개 -->
+      <polygon points="100,180 103,186 110,187 105,191 106,197 100,194 94,197 95,191 90,187 97,186" fill="#FDE047"/>
+      <polygon points="128,180 131,186 138,187 133,191 134,197 128,194 122,197 123,191 118,187 125,186" fill="#FDE047"/>
+      <polygon points="156,180 159,186 166,187 161,191 162,197 156,194 150,197 151,191 146,187 153,186" fill="#FDE047"/>
+    </svg>

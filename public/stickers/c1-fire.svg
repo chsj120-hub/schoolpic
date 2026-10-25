@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+          <stop offset="0%" stop-color="#DC2626"/>
+          <stop offset="50%" stop-color="#EA580C"/>
+          <stop offset="100%" stop-color="#FDE047"/>
+        </linearGradient>
+        <filter id="fireShadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#DC2626" flood-opacity="0.5"/></filter>
+      </defs>
+      <g filter="url(#fireShadow)">
+        <path d="M128 15 C135 70 185 85 185 130 C185 175 145 235 128 240 C111 235 71 175 71 130 C71 85 121 70 128 15 Z" fill="url(#fireGrad)" stroke="#991B1B" stroke-width="5"/>
+        <path d="M128 85 C145 115 160 135 160 160 C160 190 140 220 128 225 C116 220 96 190 96 160 C96 135 111 115 128 85 Z" fill="#FEF08A"/>
+      </g>
+    </svg>

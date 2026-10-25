@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 빈티지 카메라 -->
+      <rect x="35" y="75" width="186" height="135" rx="20" fill="#0F172A" stroke="#FFFFFF" stroke-width="6"/>
+      <rect x="80" y="50" width="50" height="25" rx="6" fill="#E2E8F0" stroke="#0F172A" stroke-width="4"/>
+      <!-- 플래시 렌즈 팝 -->
+      <circle cx="128" cy="142" r="48" fill="#E2E8F0" stroke="#38BDF8" stroke-width="8"/>
+      <circle cx="128" cy="142" r="28" fill="#0284C7"/>
+      <!-- 찰칵 플래시 빛 -->
+      <polygon points="190,40 195,55 210,58 197,66 200,80 188,72 176,80 179,66 166,58 181,55" fill="#FDE047"/>
+    </svg>

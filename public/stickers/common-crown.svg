@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <linearGradient id="crownGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FDE047"/>
+          <stop offset="60%" stop-color="#F59E0B"/>
+          <stop offset="100%" stop-color="#D97706"/>
+        </linearGradient>
+        <filter id="crownShadow">
+          <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#78350F" flood-opacity="0.35"/>
+        </filter>
+      </defs>
+      <g filter="url(#crownShadow)">
+        <polygon points="30,190 226,190 216,90 168,140 128,60 88,140 40,90" fill="url(#crownGrad)" stroke="#78350F" stroke-width="6" stroke-linejoin="round"/>
+        <!-- 보석들 -->
+        <circle cx="128" cy="55" r="14" fill="#EF4444" stroke="#78350F" stroke-width="4"/>
+        <circle cx="40" cy="85" r="12" fill="#3B82F6" stroke="#78350F" stroke-width="4"/>
+        <circle cx="216" cy="85" r="12" fill="#10B981" stroke="#78350F" stroke-width="4"/>
+        <circle cx="128" cy="155" r="10" fill="#EC4899" stroke="#78350F" stroke-width="3"/>
+        <circle cx="85" cy="165" r="8" fill="#3B82F6" stroke="#78350F" stroke-width="3"/>
+        <circle cx="171" cy="165" r="8" fill="#10B981" stroke="#78350F" stroke-width="3"/>
+        <rect x="25" y="190" width="206" height="20" rx="10" fill="#B45309" stroke="#78350F" stroke-width="4"/>
+      </g>
+    </svg>

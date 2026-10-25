@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 황금비율 피보나치 나선 -->
+      <rect x="35" y="35" width="186" height="186" rx="16" fill="#1E1B4B" stroke="#6366F1" stroke-width="6"/>
+      <path d="M35 221 A186 186 0 0 1 221 35 A115 115 0 0 1 106 150 A71 71 0 0 1 177 221" stroke="#38BDF8" stroke-width="8" stroke-linecap="round" fill="none"/>
+      <text x="128" y="135" font-family="sans-serif" font-weight="900" font-size="42" fill="#FDE047" text-anchor="middle">φ</text>
+    </svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 태극 엠블럼 -->
+      <circle cx="128" cy="128" r="95" fill="#FFFFFF" stroke="#0F172A" stroke-width="8"/>
+      <!-- 태극 문양 -->
+      <path d="M128 50 A40 40 0 0 1 128 130 A40 40 0 0 0 128 210 A80 80 0 0 1 128 50 Z" fill="#EF4444"/>
+      <path d="M128 50 A80 80 0 0 0 128 210 A40 40 0 0 1 128 130 A40 40 0 0 0 128 50 Z" fill="#2563EB"/>
+    </svg>

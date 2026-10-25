@@ -24,6 +24,9 @@ import {
   StickerDefinition 
 } from "@/lib/stickerRegistry";
 
+// 실물 이미지 스티커 렌더링 성능을 위한 인메모리 이미지 캐시
+const stickerImageCache = new Map<string, HTMLImageElement>();
+
 export type FramePresetType = string;
 
 export interface PlacedSticker {
@@ -32,6 +35,7 @@ export interface PlacedSticker {
   name: string;
   text: string;
   icon?: string;
+  imageSrc?: string; // 실물 이미지 스티커 파일 경로
   bg: string;
   color: string;
   border?: string;
@@ -246,6 +250,7 @@ export default function CameraCanvasComposerModal({
       name: stickerDef.name,
       text: stickerDef.text,
       icon: stickerDef.icon,
+      imageSrc: stickerDef.imageSrc,
       bg: stickerDef.bg,
       color: stickerDef.color,
       border: stickerDef.border,
@@ -329,7 +334,7 @@ export default function CameraCanvasComposerModal({
 
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => {
+    img.onload = async () => {
       // 가로/세로 비율 자동 감지
       if (img.width && img.height) {
         setRawImageAspect(img.width / img.height);
@@ -649,8 +654,34 @@ export default function CameraCanvasComposerModal({
       }
 
       // ========================================================================
-      // 8) 사용자가 배치한 모든 스티커 Canvas에 각인 렌더링!
+      // 8) 사용자가 배치한 모든 스티커 (실물 이미지 또는 텍스트 배지) Canvas에 각인 렌더링!
       // ========================================================================
+      const loadedImages = await Promise.all(
+        placedStickers.map(async (stk) => {
+          if (!stk.imageSrc) return null;
+          if (stickerImageCache.has(stk.imageSrc)) {
+            return { uid: stk.uid, img: stickerImageCache.get(stk.imageSrc)! };
+          }
+          try {
+            const sImg = new Image();
+            sImg.crossOrigin = "anonymous";
+            await new Promise<void>((resolve, reject) => {
+              sImg.onload = () => resolve();
+              sImg.onerror = () => reject();
+              sImg.src = stk.imageSrc!;
+            });
+            stickerImageCache.set(stk.imageSrc, sImg);
+            return { uid: stk.uid, img: sImg };
+          } catch {
+            return null;
+          }
+        })
+      );
+      const imgMap = new Map<string, HTMLImageElement>();
+      loadedImages.forEach((item) => {
+        if (item) imgMap.set(item.uid, item.img);
+      });
+
       placedStickers.forEach((stk) => {
         const posX = (stk.x / 100) * targetWidth;
         const posY = (stk.y / 100) * targetHeight;
@@ -658,28 +689,36 @@ export default function CameraCanvasComposerModal({
         ctx.save();
         ctx.translate(posX, posY);
 
-        ctx.font = "900 24px sans-serif";
-        const textMetrics = ctx.measureText(stk.text);
-        const paddingX = 22;
-        const boxWidth = textMetrics.width + paddingX * 2;
-        const boxHeight = 50;
+        if (stk.imageSrc && imgMap.has(stk.uid)) {
+          // 실물 투명 이미지 스티커 렌더링 (가로세로 120px)
+          const stickerImg = imgMap.get(stk.uid)!;
+          const sSize = 120;
+          ctx.drawImage(stickerImg, -sSize / 2, -sSize / 2, sSize, sSize);
+        } else {
+          // 텍스트/이모지 배지 스티커 렌더링
+          ctx.font = "900 24px sans-serif";
+          const textMetrics = ctx.measureText(stk.text);
+          const paddingX = 22;
+          const boxWidth = textMetrics.width + paddingX * 2;
+          const boxHeight = 50;
 
-        // 둥근 사각 스티커 배경
-        ctx.fillStyle = stk.bg || "#F59E0B";
-        ctx.beginPath();
-        ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 25);
-        ctx.fill();
+          // 둥근 사각 스티커 배경
+          ctx.fillStyle = stk.bg || "#F59E0B";
+          ctx.beginPath();
+          ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 25);
+          ctx.fill();
 
-        // 외곽선
-        ctx.strokeStyle = stk.border || "#FFFFFF";
-        ctx.lineWidth = 4;
-        ctx.stroke();
+          // 외곽선
+          ctx.strokeStyle = stk.border || "#FFFFFF";
+          ctx.lineWidth = 4;
+          ctx.stroke();
 
-        // 텍스트
-        ctx.fillStyle = stk.color || "#000000";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(stk.text, 0, 1);
+          // 텍스트
+          ctx.fillStyle = stk.color || "#000000";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(stk.text, 0, 1);
+        }
 
         ctx.restore();
       });
@@ -915,25 +954,44 @@ export default function CameraCanvasComposerModal({
                         isDragging ? "scale-105 z-30" : "z-20 hover:scale-102"
                       }`}
                     >
-                      <div 
-                        style={{
-                          backgroundColor: stk.bg,
-                          color: stk.color,
-                          borderColor: stk.border || "#FFFFFF",
-                        }}
-                        className="px-3 py-1.5 rounded-full text-xs font-black shadow-lg border-2 flex items-center gap-1.5 whitespace-nowrap active:opacity-90"
-                      >
-                        <Move className="w-3 h-3 opacity-70" />
-                        <span>{stk.text}</span>
-                        {/* 스티커 삭제 버튼 */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleRemoveSticker(stk.uid, e)}
-                          className="w-4 h-4 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center text-[9px] ml-0.5"
+                      {stk.imageSrc ? (
+                        <div className="relative group p-1">
+                          <img
+                            src={stk.imageSrc}
+                            alt={stk.text}
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-contain pointer-events-none drop-shadow-md select-none"
+                          />
+                          {/* 스티커 삭제 버튼 */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleRemoveSticker(stk.uid, e)}
+                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center text-xs font-bold shadow-md cursor-pointer"
+                            aria-label="스티커 삭제"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div 
+                          style={{
+                            backgroundColor: stk.bg,
+                            color: stk.color,
+                            borderColor: stk.border || "#FFFFFF",
+                          }}
+                          className="px-3 py-1.5 rounded-full text-xs font-black shadow-lg border-2 flex items-center gap-1.5 whitespace-nowrap active:opacity-90"
                         >
-                          ✕
-                        </button>
-                      </div>
+                          <Move className="w-3 h-3 opacity-70" />
+                          <span>{stk.text}</span>
+                          {/* 스티커 삭제 버튼 */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleRemoveSticker(stk.uid, e)}
+                            className="w-4 h-4 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center text-[9px] ml-0.5"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1000,23 +1058,41 @@ export default function CameraCanvasComposerModal({
               </label>
 
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
-                {availableStickers.map((stk) => (
-                  <button
-                    key={stk.id}
-                    type="button"
-                    onClick={() => handleAddSticker(stk)}
-                    style={{
-                      backgroundColor: stk.bg,
-                      color: stk.color,
-                      borderColor: stk.border || "#FFFFFF",
-                    }}
-                    className="shrink-0 px-2.5 py-1.5 rounded-xl border text-[11px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                  >
-                    <span>{stk.icon || "✨"}</span>
-                    <span>{stk.text}</span>
-                    <span className="text-[9px] opacity-75">+추가</span>
-                  </button>
-                ))}
+                {availableStickers.map((stk) =>
+                  stk.imageSrc ? (
+                    <button
+                      key={stk.id}
+                      type="button"
+                      onClick={() => handleAddSticker(stk)}
+                      style={{
+                        backgroundColor: stk.bg,
+                        color: stk.color,
+                        borderColor: stk.border || "#FFFFFF",
+                      }}
+                      className="shrink-0 px-2.5 py-1.5 rounded-xl border text-[11px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <img src={stk.imageSrc} alt="" className="w-5 h-5 object-contain pointer-events-none" />
+                      <span>{stk.name}</span>
+                      <span className="text-[9px] opacity-75">+추가</span>
+                    </button>
+                  ) : (
+                    <button
+                      key={stk.id}
+                      type="button"
+                      onClick={() => handleAddSticker(stk)}
+                      style={{
+                        backgroundColor: stk.bg,
+                        color: stk.color,
+                        borderColor: stk.border || "#FFFFFF",
+                      }}
+                      className="shrink-0 px-2.5 py-1.5 rounded-xl border text-[11px] font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <span>{stk.icon || "✨"}</span>
+                      <span>{stk.text}</span>
+                      <span className="text-[9px] opacity-75">+추가</span>
+                    </button>
+                  )
+                )}
               </div>
             </div>
 

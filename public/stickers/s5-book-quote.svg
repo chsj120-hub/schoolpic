@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 감성 북마크 책갈피 -->
+      <polygon points="70,40 186,40 186,215 128,175 70,215" fill="#10B981" stroke="#065F46" stroke-width="7" stroke-linejoin="round"/>
+      <text x="128" y="115" font-family="serif" font-weight="bold" font-size="48" fill="#FFFFFF" text-anchor="middle">“ ”</text>
+    </svg>

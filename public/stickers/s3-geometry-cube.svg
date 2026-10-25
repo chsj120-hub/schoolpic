@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 3차원 네온 큐브 -->
+      <g stroke="#0F172A" stroke-width="6" stroke-linejoin="round">
+        <polygon points="128,40 208,85 128,130 48,85" fill="#818CF8"/>
+        <polygon points="48,85 128,130 128,220 48,175" fill="#4F46E5"/>
+        <polygon points="208,85 128,130 128,220 208,175" fill="#6366F1"/>
+      </g>
+    </svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#E0F2FE" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.3"/>
+        </linearGradient>
+      </defs>
+      <!-- 손잡이 -->
+      <line x1="150" y1="150" x2="225" y2="225" stroke="#78350F" stroke-width="22" stroke-linecap="round"/>
+      <line x1="150" y1="150" x2="225" y2="225" stroke="#F59E0B" stroke-width="14" stroke-linecap="round"/>
+      <!-- 렌즈 테두리 -->
+      <circle cx="100" cy="100" r="70" fill="url(#lensGrad)" stroke="#1E293B" stroke-width="12"/>
+      <circle cx="100" cy="100" r="62" fill="none" stroke="#FDE047" stroke-width="4"/>
+      <!-- 반사광 -->
+      <path d="M55 85 C55 60 75 45 100 45" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" fill="none"/>
+    </svg>

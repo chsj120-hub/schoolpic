@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <filter id="shieldShadow"><feDropShadow dx="0" dy="4" stdDeviation="3" flood-opacity="0.3"/></filter>
+      </defs>
+      <g filter="url(#shieldShadow)">
+        <!-- 방패 -->
+        <path d="M128 40 C175 40 205 55 205 110 C205 180 145 220 128 230 C111 220 51 180 51 110 C51 55 81 40 128 40 Z" fill="#2563EB" stroke="#1E293B" stroke-width="6"/>
+        <path d="M128 55 C165 55 190 68 190 110 C190 170 142 205 128 215 C114 205 66 170 66 110 C66 68 91 55 128 55 Z" fill="#3B82F6"/>
+        <polygon points="128,75 145,120 190,120 155,145 170,190 128,160 86,190 101,145 66,120 111,120" fill="#FDE047" stroke="#B45309" stroke-width="3"/>
+      </g>
+    </svg>

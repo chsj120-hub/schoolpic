@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 인스타그램 파란색 공식 인증 뱃지 -->
+      <path d="M128 25 L155 45 L188 40 L203 70 L233 83 L233 116 L250 143 L233 170 L233 203 L203 216 L188 246 L155 241 L128 261 L101 241 L68 246 L53 216 L23 203 L23 170 L6 143 L23 116 L23 83 L53 70 L68 40 L101 45 Z" transform="scale(0.85) translate(22, 10)" fill="#0284C7" stroke="#FFFFFF" stroke-width="6"/>
+      <!-- 체크 표시 -->
+      <path d="M90 130 L115 155 L170 100" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>

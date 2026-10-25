@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 춤추는 무지개 음표 -->
+      <path d="M85 160 L85 70 L195 45 L195 135" stroke="#9333EA" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <polygon points="85,70 195,45 195,75 85,100" fill="#C084FC"/>
+      <ellipse cx="65" cy="165" rx="26" ry="20" fill="#EC4899" transform="rotate(-20, 65, 165)"/>
+      <ellipse cx="175" cy="140" rx="26" ry="20" fill="#EC4899" transform="rotate(-20, 175, 140)"/>
+    </svg>

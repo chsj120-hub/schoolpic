@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <!-- 밥공기 -->
+      <path d="M40 120 C40 185 80 205 128 205 C176 205 216 185 216 120 Z" fill="#F97316" stroke="#9A3412" stroke-width="8"/>
+      <!-- 소복한 밥 -->
+      <path d="M40 120 C40 60 216 60 216 120 Z" fill="#FFFFFF" stroke="#9A3412" stroke-width="8"/>
+      <!-- 김 솔솔 -->
+      <path d="M90 40 Q80 25 90 10" stroke="#FB923C" stroke-width="4" stroke-linecap="round" fill="none"/>
+      <path d="M128 35 Q118 20 128 5" stroke="#FB923C" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M166 40 Q156 25 166 10" stroke="#FB923C" stroke-width="4" stroke-linecap="round" fill="none"/>
+      <!-- 받침대 -->
+      <rect x="95" y="205" width="66" height="15" rx="5" fill="#9A3412"/>
+    </svg>
