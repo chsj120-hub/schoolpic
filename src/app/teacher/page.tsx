@@ -15,6 +15,7 @@ import { TeacherUserGuideModal } from "@/components/TeacherUserGuideModal";
 import { Footer } from "@/components/Footer";
 import { downloadSubmissionsZip } from "@/lib/zipBackupGenerator";
 import { DraftModal } from "@/components/DraftModal";
+import { AwardResultDraftModal } from "@/components/AwardResultDraftModal";
 import {
   School,
   Sparkles,
@@ -215,6 +216,7 @@ export default function TeacherAdminPage() {
   // 특별상 수여 및 기안문 모달 상태
   const [isSpecialAwardModalOpen, setIsSpecialAwardModalOpen] = useState(false);
   const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+  const [isAwardResultDraftModalOpen, setIsAwardResultDraftModalOpen] = useState(false);
   const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>(SAMPLE_SUBMISSIONS[0].id);
   const [specialAwardTitle, setSpecialAwardTitle] = useState("💡 싱크로율 대폭발 아이디어 특별상");
   const [specialAwardReason, setSpecialAwardReason] = useState("일상 사물의 조형적 특징을 예리하게 관찰하여 독창적인 시각 표현을 완성하고 학급에 큰 웃음을 선사함.");
@@ -542,13 +544,22 @@ export default function TeacherAdminPage() {
     }
   };
 
-  // 기안문 표준 한글(HWPX) & K-에듀파인 복사 모달 열기
+  // 기안문 표준 서식 (실시 계획안) 모달 열기
   const handleDownloadHwp = () => {
     if (!currentChallenge) {
       showToast("⚠️ 기안문을 작성할 사진전이 없습니다.", "먼저 사진전을 개설해주세요.", "warning");
       return;
     }
     setIsDraftModalOpen(true);
+  };
+
+  // 시상 결과 발표 및 시상 계획 기안문 모달 열기
+  const handleOpenAwardResultDraft = () => {
+    if (!currentChallenge) {
+      showToast("⚠️ 시상 결과 기안문을 작성할 사진전이 없습니다.", "먼저 사진전을 선택해주세요.", "warning");
+      return;
+    }
+    setIsAwardResultDraftModalOpen(true);
   };
 
   // 시상용 최종 결과표 CSV 다운로드 (학생, 교직원, 학부모 투표 분리 집계 반영)
@@ -1615,14 +1626,14 @@ export default function TeacherAdminPage() {
                     <span>작품 ZIP 다운로드</span>
                   </button>
 
-                  {/* 핵심 CTA 2: 기안문(HWPX) */}
+                  {/* 핵심 CTA 2: 시상 결과 기안문 */}
                   <button
                     type="button"
-                    onClick={handleDownloadHwp}
+                    onClick={handleOpenAwardResultDraft}
                     className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs border-[2px] border-slate-900 shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <FileCheck2 className="w-4 h-4 text-amber-400" />
-                    <span>기안문(HWPX)</span>
+                    <span>🏆 시상 결과 기안문</span>
                   </button>
                 </div>
               </div>
@@ -1840,6 +1851,19 @@ export default function TeacherAdminPage() {
             submissionRange: `${submissionStartDate} ${submissionStartTime} ~ ${submissionEndDate} ${submissionEndTime}`,
             votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
             teacherTips: currentChallenge.teacherTips || "창체/자율활동 연계",
+            schoolName: schoolName,
+          }}
+        />
+      )}
+
+      {/* K-에듀파인 시상 결과 발표 및 시상 계획 기안문 모달 */}
+      {currentChallenge && (
+        <AwardResultDraftModal
+          isOpen={isAwardResultDraftModalOpen}
+          onClose={() => setIsAwardResultDraftModalOpen(false)}
+          params={{
+            challenge: currentChallenge,
+            submissions: submissions,
             schoolName: schoolName,
           }}
         />
