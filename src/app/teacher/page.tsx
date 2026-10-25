@@ -1024,30 +1024,54 @@ export default function TeacherAdminPage() {
         </div>
       )}
 
-      {/* 1. 상단 글로벌 네비게이션 헤더 (요청 반영: PC 화면 비율 조정 및 버튼 크기/모양 고정, 글자 세로 줄바꿈 완벽 방지) */}
+      {/* 1. 상단 글로벌 네비게이션 헤더 (모바일 반응형 최적화: 2단 분리 & 터치 친화적 가로 탭 바) */}
       <header className="bg-white border-b-[2.5px] border-slate-900 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 flex flex-col gap-2">
           
-          {/* 학교 정보 (공간 부족 시 말줄임 처리하여 버튼 여유 공간 확보) */}
-          <div className="flex items-center gap-2 shrink-0 min-w-0 max-w-[230px] xl:max-w-none">
-            <span className="text-2xl shrink-0">🏫</span>
-            <div className="flex items-center gap-1.5 font-black text-xs sm:text-sm text-slate-900 truncate">
-              <span className="text-sky-600 shrink-0 hidden sm:inline">[스쿨픽 Admin]</span>
-              <span className="truncate">{schoolName}</span>
-              <span className="text-[10px] sm:text-xs font-black text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-lg border border-slate-300 shrink-0">
-                {schoolCode}
-              </span>
+          {/* 상단 1행: 학교명 & 교사 프로필/로그아웃 (모바일에서도 줄바꿈/잘림 없이 한 줄에 정돈) */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              <span className="text-xl sm:text-2xl shrink-0">🏫</span>
+              <div className="flex items-center gap-1 sm:gap-1.5 font-black text-xs sm:text-sm text-slate-900 truncate">
+                <span className="text-sky-600 shrink-0 hidden md:inline">[스쿨픽 Admin]</span>
+                <span className="truncate">{schoolName}</span>
+                <span className="text-[10px] sm:text-xs font-black text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-lg border border-slate-300 shrink-0">
+                  {schoolCode}
+                </span>
+              </div>
+            </div>
+
+            {/* 우측 로그인 교사 프로필 & 로그아웃 */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 text-xs font-extrabold bg-slate-100 text-slate-800 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl border border-slate-300 shrink-0">
+                <span className="text-sm">👨‍🏫</span>
+                <span className="whitespace-nowrap">{teacherName}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem("schoolpick_teacher");
+                  }
+                  router.push("/");
+                }}
+                className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl border border-slate-300 hover:border-rose-400 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                title="로그아웃"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline whitespace-nowrap">로그아웃</span>
+              </button>
             </div>
           </div>
 
-          {/* 4대 네비게이션 탭 & 외부 포털/유틸리티 버튼 (60-30-10 컬러 법칙 적용) */}
-          <nav className="flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto no-scrollbar py-0.5">
+          {/* 상단 2행: 4대 네비게이션 탭 & 외부 포털/유틸리티 (가로 스와이프 스크롤로 모바일 터치 최적화) */}
+          <nav className="w-full flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 touch-pan-x">
             
             {/* 탭 1: 대시보드 */}
             <button
               type="button"
               onClick={() => setActiveNav("dashboard")}
-              className={`h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
                 activeNav === "dashboard"
                   ? "bg-[#FFC72C] text-slate-950 border-slate-900 shadow-[0_2px_0_0_#1E293B]"
                   : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-700"
@@ -1061,7 +1085,7 @@ export default function TeacherAdminPage() {
             <button
               type="button"
               onClick={() => setIsWizardOpen(true)}
-              className="h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-900 bg-amber-100 hover:bg-[#FFC72C] text-slate-950 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 shadow-[0_2px_0_0_#1E293B] active:translate-y-0.5"
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-900 bg-amber-100 hover:bg-[#FFC72C] text-slate-950 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 shadow-[0_2px_0_0_#1E293B] active:translate-y-0.5"
             >
               <span>🏞️</span>
               <span className="whitespace-nowrap">새 사진전 만들기</span>
@@ -1071,7 +1095,7 @@ export default function TeacherAdminPage() {
             <button
               type="button"
               onClick={() => setActiveNav("review")}
-              className={`h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
                 activeNav === "review"
                   ? "bg-[#FFC72C] text-slate-950 border-slate-900 shadow-[0_2px_0_0_#1E293B]"
                   : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-700"
@@ -1085,7 +1109,7 @@ export default function TeacherAdminPage() {
             <button
               type="button"
               onClick={() => setActiveNav("export")}
-              className={`h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
+              className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
                 activeNav === "export"
                   ? "bg-[#FFC72C] text-slate-950 border-slate-900 shadow-[0_2px_0_0_#1E293B]"
                   : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-700"
@@ -1100,7 +1124,7 @@ export default function TeacherAdminPage() {
               <button
                 type="button"
                 onClick={() => setActiveNav("analytics")}
-                className={`h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
+                className={`h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs font-black shrink-0 ${
                   activeNav === "analytics"
                     ? "bg-purple-600 text-white border-slate-900 shadow-[0_2px_0_0_#1E293B]"
                     : "bg-purple-50 border-purple-300 hover:border-purple-500 hover:bg-purple-100 text-purple-900"
@@ -1111,13 +1135,13 @@ export default function TeacherAdminPage() {
               </button>
             )}
 
-            {/* 시각적 그룹 구분선 (Gestalt 근접성/유사성 원칙 적용: 내부 관리 탭 vs 외부 포털/유틸리티) */}
-            <div className="h-5 w-[1.5px] bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
+            {/* 시각적 그룹 구분선 */}
+            <div className="h-5 w-[1.5px] bg-slate-200 mx-0.5 shrink-0" />
 
-            {/* 외부 포털 1: 전국 스쿨 교류관 바로가기 (화이트 서피스 + 컬러 아이콘 통일) */}
+            {/* 외부 포털 1: 전국 스쿨 교류관 바로가기 */}
             <Link
               href="/national"
-              className="h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-sky-50 hover:border-sky-400 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0"
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-sky-50 hover:border-sky-400 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0"
             >
               <Globe className="w-3.5 h-3.5 text-sky-600 shrink-0" />
               <span className="whitespace-nowrap">전국 교류관</span>
@@ -1126,98 +1150,79 @@ export default function TeacherAdminPage() {
             {/* 외부 포털 2: 학부모 전용 투표관 바로가기 */}
             <Link
               href="/parents"
-              className="h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-rose-50 hover:border-rose-400 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0"
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-rose-50 hover:border-rose-400 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0"
             >
               <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-400 shrink-0" />
               <span className="whitespace-nowrap">학부모 투표관</span>
             </Link>
 
-            {/* 유틸리티: 교사용 통합 운영 매뉴얼 (상단 글로벌 네비게이션 단독 배치) */}
+            {/* 유틸리티: 교사용 통합 운영 매뉴얼 */}
             <button
               type="button"
               onClick={() => setIsUserGuideOpen(true)}
-              className="h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-500 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0 cursor-pointer active:scale-95"
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-xl border-[2px] border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-500 text-slate-800 font-black transition-all flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0 cursor-pointer active:scale-95"
             >
               <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="whitespace-nowrap">운영 매뉴얼</span>
             </button>
           </nav>
 
-          {/* 우측 로그인 교사 프로필 */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold bg-slate-100 text-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-300 shrink-0">
-              <span className="text-sm">👨‍🏫</span>
-              <span className="whitespace-nowrap hidden sm:inline">{teacherName}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  localStorage.removeItem("schoolpick_teacher");
-                }
-                router.push("/");
-              }}
-              className="h-9 px-2.5 rounded-xl border border-slate-300 hover:border-rose-400 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline whitespace-nowrap">로그아웃</span>
-            </button>
-          </div>
-
         </div>
       </header>
 
-      {/* 2. 다중 교사 및 복수 사진전 선택 바 (60-30-10 컬러 법칙: 차분한 슬레이트 톤으로 정돈) */}
-      <div className="bg-slate-100/90 border-b border-slate-200 px-4 py-2.5 shadow-2xs">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      {/* 2. 다중 교사 및 복수 사진전 선택 바 (모바일 반응형 최적화) */}
+      <div className="bg-slate-100/90 border-b border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
           
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📌</span>
-            <span className="text-xs font-black text-slate-800">
-              관리할 사진전 선택 (다중 교사 협업):
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 shrink-0">
+              <span className="text-base sm:text-lg">📌</span>
+              <span>관리할 사진전 선택:</span>
+            </div>
             {challenges.length > 0 ? (
-              <select
-                value={selectedChallengeId}
-                onChange={(e) => setSelectedChallengeId(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-white text-xs font-black text-slate-900 shadow-2xs focus:outline-none cursor-pointer"
-              >
-                {challenges.map((ch) => (
-                  <option key={ch.id} value={ch.id}>
-                    【 {ch.title} 】 (개설: {ch.createdAt} / {ch.status === "VOTING" ? "전교 투표 중" : ch.status === "ENDED" ? "투표 종료(시상)" : "사진 접수 중"} / 담당: {ch.teacherName})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
+                <select
+                  value={selectedChallengeId}
+                  onChange={(e) => setSelectedChallengeId(e.target.value)}
+                  className="w-full sm:w-auto max-w-full sm:max-w-md px-2.5 sm:px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-white text-xs font-black text-slate-900 shadow-2xs focus:outline-none cursor-pointer truncate"
+                >
+                  {challenges.map((ch) => (
+                    <option key={ch.id} value={ch.id}>
+                      【 {ch.title} 】 (개설: {ch.createdAt} / {ch.status === "VOTING" ? "전교 투표 중" : ch.status === "ENDED" ? "투표 종료(시상)" : "사진 접수 중"} / 담당: {ch.teacherName})
+                    </option>
+                  ))}
+                </select>
+
+                {/* 실수로 개설된 사진전 즉시 삭제 버튼 */}
+                {currentChallenge && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteCurrentChallenge}
+                    className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 hover:border-rose-500 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                    title="실수로 잘못 개설된 사진전을 영구 삭제합니다."
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">삭제</span>
+                  </button>
+                )}
+              </div>
             ) : (
               <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-300">
                 개설된 사진전 없음
               </span>
             )}
-
-            {/* 실수로 개설된 사진전 즉시 삭제 버튼 (선택 바 바로 옆에 배치) */}
-            {currentChallenge && (
-              <button
-                type="button"
-                onClick={handleDeleteCurrentChallenge}
-                className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 hover:border-rose-500 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
-                title="실수로 잘못 개설된 사진전을 영구 삭제합니다."
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">사진전 삭제</span>
-              </button>
-            )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+          <div className="flex items-center justify-between sm:justify-end gap-2 text-xs font-bold text-slate-600 w-full sm:w-auto shrink-0">
             {currentChallenge ? (
-              <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-300 font-black text-slate-800">
-                현재 선택: <b className="text-sky-700">{currentChallenge.title}</b> (담당: {currentChallenge.teacherName})
+              <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-300 font-black text-slate-800 text-[11px] sm:text-xs truncate max-w-full">
+                현재 선택: <b className="text-sky-700">{currentChallenge.title}</b> ({currentChallenge.teacherName})
               </span>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsWizardOpen(true)}
-                className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl border-2 border-slate-900 font-black text-xs shadow-xs cursor-pointer active:translate-y-0.5"
+                className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl border-2 border-slate-900 font-black text-xs shadow-xs cursor-pointer active:translate-y-0.5 text-center"
               >
                 + 새 사진전 개설하기
               </button>
@@ -1227,64 +1232,64 @@ export default function TeacherAdminPage() {
         </div>
       </div>
 
-      {/* 3. 메인 콘텐츠 */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      {/* 3. 메인 콘텐츠 (모바일 반응형 패딩 및 레이아웃 최적화) */}
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 w-full min-w-0">
         
         {/* ================================================================== */}
         {/* [TAB 1]: 대시보드 - 이벤트 타임라인 & 데이터 보관 설정 */}
         {/* ================================================================== */}
         {activeNav === "dashboard" && (
-          <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
 
             {/* [신규 기능]: 전국 스쿨 교류관 — 수업 안내용 예시 쇼케이스 게시판 & 서버 용량/수명주기 쿼터 관리 카드 */}
-            <div className="bg-gradient-to-r from-sky-50 via-indigo-50 to-amber-50 rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-200/80 pb-3">
+            <div className="bg-gradient-to-r from-sky-50 via-indigo-50 to-amber-50 rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200/80 pb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-2xl">🌐</span>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-black text-base sm:text-lg text-slate-900">
-                        전국 스쿨 교류관 — 수업 안내용 예시 쇼케이스 게시판
+                        전국 스쿨 교류관 — 수업 안내용 쇼케이스
                       </h3>
                       <span className="text-[10px] bg-sky-500 text-white font-extrabold px-2 py-0.5 rounded-full">
                         수업 예시용
                       </span>
                     </div>
                     <p className="text-xs text-slate-600 font-bold mt-0.5">
-                      학생들이 사진을 찍기 전, 타 학교 우수작과 포즈 아이디어를 예시로 보여주어 수업 흥미와 참여도를 높여보세요!
+                      학생들이 사진을 찍기 전, 타 학교 우수작과 포즈 아이디어를 예시로 보여주어 참여도를 높여보세요!
                     </p>
                   </div>
                 </div>
 
                 {/* 교류관 이동 버튼 2종: 게시판 뷰 & 수업용 슬라이드쇼 */}
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                   <Link
                     href="/national?view=board"
-                    className="h-9 px-3.5 rounded-xl border-[2px] border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-black text-xs flex items-center gap-1.5 shadow-[0_2px_0_0_#1E293B] cursor-pointer transition-all"
+                    className="h-9 px-3.5 rounded-xl border-[2px] border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_2px_0_0_#1E293B] cursor-pointer transition-all"
                   >
                     <span>📋</span>
-                    <span>우수작 게시판 열기</span>
+                    <span>우수작 게시판</span>
                   </Link>
                   <Link
                     href="/national?mode=presentation"
-                    className="h-9 px-3.5 rounded-xl border-[2px] border-slate-900 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-[0_2px_0_0_#1E293B] cursor-pointer transition-all"
+                    className="h-9 px-3.5 rounded-xl border-[2px] border-slate-900 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_2px_0_0_#1E293B] cursor-pointer transition-all"
                   >
                     <span>📺</span>
-                    <span>수업용 전자칠판 슬라이드쇼</span>
+                    <span>칠판 슬라이드쇼</span>
                   </Link>
                 </div>
               </div>
 
-              {/* 서버 자원 보호를 위한 전시 쿼터 및 수명주기(Lifecycle) 게이지 (요청: 일반 사용자에게는 숨기고 개발자/관리자에게만 노출) */}
+              {/* 서버 자원 보호를 위한 전시 쿼터 및 수명주기(Lifecycle) 게이지 (개발자/관리자에게만 노출) */}
               {isDevAdmin && (
-                <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
+                <div className="bg-white rounded-2xl border-2 border-slate-200 p-3.5 sm:p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between text-xs font-black text-slate-800 gap-2">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>서버 자원 보호: 전국 사진 전시 쿼터 및 보관 주기 관리 (개발자 모니터링)</span>
+                      <span>서버 자원 보호: 전국 사진 전시 쿼터 및 보관 주기 관리</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
-                      <span>우리 학교 등재작: <b className="text-sky-600 font-black">{submissions.filter(s => s.is_public_shared).length} / 5장</b> (학교당 최대 5장 제한)</span>
+                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                      <span>우리 학교 등재작: <b className="text-sky-600 font-black">{submissions.filter(s => s.is_public_shared).length} / 5장</b></span>
                       <span>•</span>
                       <span>전국 총 전시: <b className="text-emerald-600 font-black">3 / 100장 (3%)</b></span>
                     </div>
@@ -1296,32 +1301,32 @@ export default function TeacherAdminPage() {
                   </div>
 
                   {/* 자원 안전 보관 안내 */}
-                  <div className="bg-sky-50 rounded-xl border border-sky-200 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="bg-sky-50 rounded-xl border border-sky-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-1.5 font-black text-sky-950">
                         <span>🛡️</span>
-                        <span>[서버 자원 안정 상태] 현재 총 3장의 전국 전시 사진이 안정적으로 보관 중입니다.</span>
+                        <span>[서버 자원 안정 상태] 3장의 전국 전시 사진이 보관 중입니다.</span>
                       </div>
                       <p className="text-[11px] text-sky-800 font-medium">
                         서버 부하 방지를 위해 <b>100장 도달 시 앞 순번부터 1주일 후 순차 자동 삭제(FIFO)</b> 정책이 적용됩니다.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={handleNotifyDeveloperBackup}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-1 cursor-pointer transition-all"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center gap-1 cursor-pointer transition-all"
                       >
                         <span>✉️</span>
-                        <span>개발자 백업 요청</span>
+                        <span>백업 요청</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleDownloadNationalArchiveZip}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center justify-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
                       >
                         <span>📦</span>
-                        <span>전체 백업 다운로드</span>
+                        <span>전체 백업</span>
                       </button>
                     </div>
                   </div>
@@ -1331,24 +1336,24 @@ export default function TeacherAdminPage() {
 
             {/* [데이터 보관 만료 및 백업 권장 안내 배너] - 전교 투표 종료(ENDED) 시 상단 즉시 노출 */}
             {isChallengeEnded && (
-              <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-rose-600 text-white rounded-3xl p-5 sm:p-6 shadow-[0_6px_0_0_#1E293B] border-[2.5px] border-slate-900 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in duration-300">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-2xl shrink-0 border border-white/30">
+              <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-rose-600 text-white rounded-3xl p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] border-[2.5px] border-slate-900 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-xl sm:text-2xl shrink-0 border border-white/30">
                     📦
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="bg-white text-rose-700 text-[11px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      <span className="bg-white text-rose-700 text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                         🚨 투표 종료 & 보관 만료 안내
                       </span>
-                      <span className="text-xs font-bold text-amber-200">
-                        개인정보 보호법 준수 D-7 자동 영구 파기 예정
+                      <span className="text-[11px] sm:text-xs font-bold text-amber-200">
+                        D-7 자동 영구 파기 예정
                       </span>
                     </div>
-                    <h4 className="text-base sm:text-lg font-black tracking-tight text-white">
+                    <h4 className="text-sm sm:text-lg font-black tracking-tight text-white">
                       전교생 투표가 종료되었습니다! 7일 후 데이터가 자동 영구 파기됩니다.
                     </h4>
-                    <p className="text-xs text-white/90 font-medium leading-relaxed">
+                    <p className="text-[11px] sm:text-xs text-white/90 font-medium leading-relaxed">
                       개인정보 보호법 및 학생 초상권 보호 원칙에 따라 <b>투표 종료 7일 후 모든 출품작 원본 사진과 학생 투표 기록이 서버에서 영구 파기</b>됩니다.<br className="hidden sm:inline" />
                       생기부 기재용 시상 결과표(CSV) 및 출품작 원본(ZIP)을 지금 바로 PC에 안전하게 백업하세요.
                     </p>
@@ -1356,11 +1361,11 @@ export default function TeacherAdminPage() {
                 </div>
 
                 {/* 원클릭 백업 액션 버튼 2종 */}
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0 w-full md:w-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:flex items-center gap-2 shrink-0 w-full md:w-auto">
                   <button
                     type="button"
                     onClick={handleDownloadCsv}
-                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-black text-xs border-2 border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:translate-y-0.5 transition-all"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-black text-xs border-2 border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:translate-y-0.5 transition-all"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>📊 시상 결과표 CSV 백업</span>
@@ -1368,7 +1373,7 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={handleDownloadZip}
-                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-2 border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:translate-y-0.5 transition-all"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-2 border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:translate-y-0.5 transition-all"
                   >
                     <FileArchive className="w-4 h-4 text-slate-900" />
                     <span>📦 전체 사진 ZIP 백업</span>
@@ -1381,35 +1386,35 @@ export default function TeacherAdminPage() {
             {challenges.length === 0 ? (
               renderEmptyState()
             ) : currentChallenge ? (
-            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-6">
+            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-5 sm:space-y-6">
               
-              <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-100 pb-4 gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-slate-100 pb-4 gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl text-sky-600">⚙️</span>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-black text-slate-900">
-                      [이벤트 타임라인 & 데이터 보관 설정] — 【 {currentChallenge.title} 】
+                    <h2 className="text-base sm:text-xl font-black text-slate-900">
+                      [타임라인 & 보관 설정] — 【 {currentChallenge.title} 】
                     </h2>
-                    <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-0.5 rounded-full mt-1 inline-block">
-                      개설일: {currentChallenge.createdAt} • 담당: {currentChallenge.teacherName}
+                    <span className="text-[11px] sm:text-xs font-black text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full mt-1 inline-block">
+                      개설: {currentChallenge.createdAt} • 담당: {currentChallenge.teacherName}
                     </span>
                   </div>
                 </div>
 
                 {/* 대시보드 액션 버튼 바 */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setSelectedChallengeForQR(currentChallenge)}
-                    className="py-2 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <Printer className="w-4 h-4 text-slate-900" />
-                    <span>🖨️ A4 포스터/QR 인쇄</span>
+                    <span>🖨️ A4 포스터/QR</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsPresentationOpen(true)}
-                    className="py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-950 font-black text-xs border border-indigo-300 flex items-center gap-1.5 cursor-pointer transition-all"
+                    className="py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-950 font-black text-xs border border-indigo-300 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                   >
                     <MonitorPlay className="w-4 h-4 text-indigo-600" />
                     <span>수업 발표 모드</span>
@@ -1419,7 +1424,7 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={handleToggleGradeClassDisplay}
-                    className={`py-2 px-3 rounded-xl font-black text-xs border-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+                    className={`py-2 px-3 rounded-xl font-black text-xs border-[2px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
                       currentChallenge.showGradeClassOnFrame
                         ? "bg-emerald-50 border-emerald-500 text-emerald-950 hover:bg-emerald-100"
                         : "bg-slate-50 border-slate-400 text-slate-800 hover:bg-slate-100"
@@ -1433,7 +1438,7 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={handleDeleteCurrentChallenge}
-                    className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs border border-rose-300 flex items-center gap-1.5 cursor-pointer transition-all"
+                    className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs border border-rose-300 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                     title="실수로 생성된 이 사진전을 모든 데이터와 함께 영구 삭제합니다."
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
@@ -1442,38 +1447,38 @@ export default function TeacherAdminPage() {
                 </div>
               </div>
 
-              {/* 3단계 타임라인 스테퍼 */}
-              <div className="relative flex items-center justify-between px-6 sm:px-16 py-3 bg-sky-50/70 rounded-2xl border border-sky-200">
-                <div className="absolute top-1/2 left-10 right-10 -translate-y-1/2 h-1 bg-sky-300 z-0" />
+              {/* 3단계 타임라인 스테퍼 (모바일 반응형 최적화) */}
+              <div className="relative flex items-center justify-between px-3 sm:px-16 py-3 bg-sky-50/70 rounded-2xl border border-sky-200">
+                <div className="absolute top-1/2 left-6 right-6 sm:left-10 sm:right-10 -translate-y-1/2 h-1 bg-sky-300 z-0" />
                 
                 <div className="relative z-10 flex flex-col items-center gap-1">
-                  <div className="w-8 h-8 rounded-full bg-amber-400 border-2 border-slate-900 text-slate-950 font-black text-xs flex items-center justify-center shadow-xs">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-400 border-2 border-slate-900 text-slate-950 font-black text-xs flex items-center justify-center shadow-xs">
                     1
                   </div>
-                  <span className="text-xs font-black text-slate-800">1 사진 접수</span>
+                  <span className="text-[10px] sm:text-xs font-black text-slate-800 text-center">1 사진 접수</span>
                 </div>
 
                 <div className="relative z-10 flex flex-col items-center gap-1">
-                  <div className="w-8 h-8 rounded-full bg-sky-500 border-2 border-slate-900 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-sky-500 border-2 border-slate-900 text-white font-black text-xs flex items-center justify-center shadow-xs">
                     2
                   </div>
-                  <span className="text-xs font-black text-slate-800">2 전교/학부모 투표</span>
+                  <span className="text-[10px] sm:text-xs font-black text-slate-800 text-center">2 전교/학부모 투표</span>
                 </div>
 
                 <div className="relative z-10 flex flex-col items-center gap-1">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-slate-400 text-slate-600 font-black text-xs flex items-center justify-center shadow-xs">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-slate-400 text-slate-600 font-black text-xs flex items-center justify-center shadow-xs">
                     3
                   </div>
-                  <span className="text-xs font-black text-slate-500">3 결과 발표 및 전시</span>
+                  <span className="text-[10px] sm:text-xs font-black text-slate-500 text-center">3 시상 및 전시</span>
                 </div>
               </div>
 
-              {/* 사진 접수 기간 (선택 및 변경 가능) */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2">
+              {/* 사진 접수 기간 (모바일 반응형 분할) */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 sm:p-4 border border-slate-200 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 bg-slate-900 rounded-xs inline-block" />
-                    <h4 className="font-black text-sm text-slate-900">
+                    <h4 className="font-black text-xs sm:text-sm text-slate-900">
                       1. 사진 접수 기간 (신규 출품 & 수정 허용)
                     </h4>
                   </div>
@@ -1481,53 +1486,57 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={handleImmediateCloseSubmission}
-                    className="px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                    className="px-2.5 sm:px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-[11px] sm:text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
                     title="즉시 접수를 마감하고 투표 단계로 전환합니다."
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
                     <span>🚨 사진 접수 즉시 마감</span>
                   </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-bold text-slate-700">
-                  <span className="text-slate-600 font-black">시작:</span>
-                  <input
-                    type="date"
-                    value={submissionStartDate}
-                    onChange={(e) => setSubmissionStartDate(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-amber-300"
-                  />
-                  <input
-                    type="time"
-                    value={submissionStartTime}
-                    onChange={(e) => setSubmissionStartTime(e.target.value)}
-                    className="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs"
-                  />
-                  <span className="text-slate-400 font-black px-1">~</span>
-                  <span className="text-slate-600 font-black">종료:</span>
-                  <input
-                    type="date"
-                    value={submissionEndDate}
-                    onChange={(e) => setSubmissionEndDate(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-amber-300"
-                  />
-                  <input
-                    type="time"
-                    value={submissionEndTime}
-                    onChange={(e) => setSubmissionEndTime(e.target.value)}
-                    className="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs"
-                  />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                    <span className="text-slate-500 font-black shrink-0 w-10 text-[11px] sm:text-xs">시작:</span>
+                    <input
+                      type="date"
+                      value={submissionStartDate}
+                      onChange={(e) => setSubmissionStartDate(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-amber-300"
+                    />
+                    <input
+                      type="time"
+                      value={submissionStartTime}
+                      onChange={(e) => setSubmissionStartTime(e.target.value)}
+                      className="w-20 sm:w-24 shrink-0 px-1.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs text-center"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                    <span className="text-slate-500 font-black shrink-0 w-10 text-[11px] sm:text-xs">종료:</span>
+                    <input
+                      type="date"
+                      value={submissionEndDate}
+                      onChange={(e) => setSubmissionEndDate(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-amber-300"
+                    />
+                    <input
+                      type="time"
+                      value={submissionEndTime}
+                      onChange={(e) => setSubmissionEndTime(e.target.value)}
+                      className="w-20 sm:w-24 shrink-0 px-1.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs text-center"
+                    />
+                  </div>
                 </div>
                 <p className="text-[11px] text-rose-500 font-bold pl-1">
                   * 종료 즉시 학생 화면의 추가 업로드 및 사진 변경이 전면 마감됩니다.
                 </p>
               </div>
 
-              {/* 투표 기간 (선택 및 변경 가능) */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2">
+              {/* 투표 기간 (모바일 반응형 분할) */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 sm:p-4 border border-slate-200 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 bg-slate-900 rounded-xs inline-block" />
-                    <h4 className="font-black text-sm text-slate-900">
+                    <h4 className="font-black text-xs sm:text-sm text-slate-900">
                       2. 전교/학부모 투표 기간 (출품 불가, 오직 투표만 허용)
                     </h4>
                   </div>
@@ -1535,50 +1544,54 @@ export default function TeacherAdminPage() {
                   <button
                     type="button"
                     onClick={handleImmediateCloseVoting}
-                    className="px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                    className="px-2.5 sm:px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[11px] sm:text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
                     title="즉시 투표를 종료하고 최종 시상 및 전시(ENDED) 단계로 전환합니다."
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
                     <span>🏁 전교 투표 즉시 종료</span>
                   </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-bold text-slate-700">
-                  <span className="text-slate-600 font-black">시작:</span>
-                  <input
-                    type="date"
-                    value={votingStartDate}
-                    onChange={(e) => setVotingStartDate(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-sky-300"
-                  />
-                  <input
-                    type="time"
-                    value={votingStartTime}
-                    onChange={(e) => setVotingStartTime(e.target.value)}
-                    className="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs"
-                  />
-                  <span className="text-slate-400 font-black px-1">~</span>
-                  <span className="text-slate-600 font-black">종료:</span>
-                  <input
-                    type="date"
-                    value={votingEndDate}
-                    onChange={(e) => setVotingEndDate(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-sky-300"
-                  />
-                  <input
-                    type="time"
-                    value={votingEndTime}
-                    onChange={(e) => setVotingEndTime(e.target.value)}
-                    className="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-xs"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                    <span className="text-slate-500 font-black shrink-0 w-10 text-[11px] sm:text-xs">시작:</span>
+                    <input
+                      type="date"
+                      value={votingStartDate}
+                      onChange={(e) => setVotingStartDate(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-sky-300"
+                    />
+                    <input
+                      type="time"
+                      value={votingStartTime}
+                      onChange={(e) => setVotingStartTime(e.target.value)}
+                      className="w-20 sm:w-24 shrink-0 px-1.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs text-center"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                    <span className="text-slate-500 font-black shrink-0 w-10 text-[11px] sm:text-xs">종료:</span>
+                    <input
+                      type="date"
+                      value={votingEndDate}
+                      onChange={(e) => setVotingEndDate(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-sky-300"
+                    />
+                    <input
+                      type="time"
+                      value={votingEndTime}
+                      onChange={(e) => setVotingEndTime(e.target.value)}
+                      className="w-20 sm:w-24 shrink-0 px-1.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-xs text-center"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 일정 변경 저장 버튼 바 (요청: 대시보드에서 선택해서 변경 가능하도록 기능 구현) */}
+              {/* 일정 변경 저장 버튼 바 */}
               <div className="flex items-center justify-end pt-1">
                 <button
                   type="button"
                   onClick={handleSaveTimelineDates}
-                  className="py-2.5 px-5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+                  className="w-full sm:w-auto py-2.5 px-5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all"
                 >
                   <Calendar className="w-4 h-4" />
                   <span>💾 타임라인 일정 변경 저장</span>
@@ -1690,12 +1703,12 @@ export default function TeacherAdminPage() {
           <div className="space-y-6 animate-in fade-in duration-200">
             
             {/* 현재 진행 중인 사진전 알림 배너 */}
-            <div className="bg-sky-500 rounded-3xl border-[2.5px] border-slate-900 p-5 shadow-[0_6px_0_0_#1E293B] text-white flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="bg-sky-500 rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-5 shadow-[0_6px_0_0_#1E293B] text-white flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3 text-center md:text-left">
                 <span className="text-3xl">📢</span>
                 <div className="space-y-1">
                   <h3 className="text-base sm:text-lg font-black text-white">
-                    현재 관리 중인 사진전: 【 {currentChallenge.title} 】
+                    현재 관리 중: 【 {currentChallenge.title} 】
                   </h3>
                   <p className="text-xs sm:text-sm font-bold text-sky-100">
                     개설: {currentChallenge.createdAt} | 담당: {currentChallenge.teacherName} | 출품작: {submissions.length}점 | 투표 수: {currentChallenge.totalVotes}표
@@ -1703,23 +1716,23 @@ export default function TeacherAdminPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full md:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedChallengeForQR(currentChallenge)}
-                  className="py-2.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                  className="py-2.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                 >
                   <Printer className="w-4 h-4 text-slate-700" />
-                  <span>A4 홍보 포스터 다시 인쇄</span>
+                  <span>A4 포스터 인쇄</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsPresentationOpen(true)}
-                  className="py-2.5 px-4 rounded-2xl bg-[#FFC72C] hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                  className="py-2.5 px-4 rounded-2xl bg-[#FFC72C] hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_3px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                 >
                   <MonitorPlay className="w-4 h-4" />
-                  <span>칠판 띄우기용 전체화면 갤러리 열기</span>
+                  <span>칠판 갤러리 열기</span>
                 </button>
               </div>
             </div>
@@ -1766,7 +1779,7 @@ export default function TeacherAdminPage() {
             </div>
 
             {/* 출품작 검수 카드 그리드 */}
-            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-5">
+            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-5">
               
               <div className="flex items-center justify-between border-b-2 border-slate-100 pb-3">
                 <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
@@ -2126,14 +2139,14 @@ export default function TeacherAdminPage() {
           challenges.length === 0 ? (
             renderEmptyState()
           ) : currentChallenge ? (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-6">
+          <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-5 sm:space-y-6">
               
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-slate-100 pb-4 gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🏆</span>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    <h2 className="text-base sm:text-xl font-black text-slate-900">
                       [시상 명단 & 특별상 수여 관리] — 【 {currentChallenge.title} 】
                     </h2>
                     <p className="text-xs text-slate-500 font-bold">
@@ -2143,50 +2156,50 @@ export default function TeacherAdminPage() {
                 </div>
 
                 {/* [디자인 원칙 1: 60-30-10 컬러 법칙] 핵심 CTA(Amber/Slate-900)와 보조 내보내기(White) 위계 구분 */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* 핵심 CTA 1: 특별상 수여 모달 열기 (10% 포인트 컬러) */}
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+                  {/* 핵심 CTA 1: 특별상 수여 모달 열기 */}
                   <button
                     type="button"
                     onClick={() => setIsSpecialAwardModalOpen(true)}
-                    className="py-2.5 px-4 rounded-xl bg-[#FFC72C] hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-[#FFC72C] hover:bg-amber-300 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    <span>+ 특별상 직접 수여하기</span>
+                    <span>+ 특별상 직접 수여</span>
                   </button>
 
                   {/* 보조 내보내기 1: 엑셀(CSV) */}
                   <button
                     type="button"
                     onClick={handleDownloadCsv}
-                    className="py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-900 font-black text-xs border-[2px] border-slate-900 shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-900 font-black text-xs border-[2px] border-slate-900 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>엑셀(CSV) 다운로드</span>
+                    <span>엑셀(CSV)</span>
                   </button>
 
                   {/* 보조 내보내기 2: 작품 ZIP */}
                   <button
                     type="button"
                     onClick={handleDownloadZip}
-                    className="py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-900 font-black text-xs border-[2px] border-slate-900 shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-900 font-black text-xs border-[2px] border-slate-900 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <FileArchive className="w-4 h-4 text-sky-600" />
-                    <span>작품 ZIP 다운로드</span>
+                    <span>작품 ZIP</span>
                   </button>
 
                   {/* 핵심 CTA 2: 시상 결과 기안문 */}
                   <button
                     type="button"
                     onClick={handleOpenAwardResultDraft}
-                    className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs border-[2px] border-slate-900 shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs border-[2px] border-slate-900 shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <FileCheck2 className="w-4 h-4 text-amber-400" />
-                    <span>🏆 시상 결과 기안문</span>
+                    <span>시상 결과 기안문</span>
                   </button>
                 </div>
               </div>
 
-              {/* 시상 명단 테이블: 총합 득표 순위 정렬 & 10명 단위 페이지네이션 */}
+              {/* 시상 명단 테이블: 가로 스와이프 스크롤 지원 */}
               {(() => {
                 const sortedSubmissions = [...submissions].sort((a, b) => b.votes - a.votes);
                 const PAGE_SIZE = 10;
@@ -2198,7 +2211,7 @@ export default function TeacherAdminPage() {
                 return (
                   <div className="space-y-3">
                     <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full text-xs text-left">
+                      <table className="w-full text-xs text-left min-w-[760px]">
                         <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
                           <tr>
                             <th className="p-3 text-center">순위</th>
@@ -2391,40 +2404,40 @@ export default function TeacherAdminPage() {
         {/* [TAB 5]: 개발자 전용 전국 통합 관제 및 통계 대시보드 */}
         {/* ================================================================== */}
         {activeNav === "analytics" && (
-          <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
             {/* 개발자 관제 헤더 */}
-            <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-6 text-white border-[2.5px] border-slate-900 shadow-[0_6px_0_0_#1E293B] space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-purple-700/60 pb-4">
+            <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-4 sm:p-6 text-white border-[2.5px] border-slate-900 shadow-[0_6px_0_0_#1E293B] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-purple-700/60 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-500/30 border border-purple-400/40 flex items-center justify-center text-2xl shadow-inner">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-purple-500/30 border border-purple-400/40 flex items-center justify-center text-xl sm:text-2xl shadow-inner shrink-0">
                     🛡️
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                        전국 스쿨픽 실시간 관제 센터 (Developer Console)
+                      <h2 className="text-base sm:text-2xl font-black tracking-tight text-white">
+                        전국 스쿨픽 실시간 관제 센터
                       </h2>
-                      <span className="text-[11px] font-black bg-emerald-400 text-slate-950 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                      <span className="text-[10px] sm:text-[11px] font-black bg-emerald-400 text-slate-950 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
                         <span className="w-2 h-2 rounded-full bg-emerald-800 animate-pulse" />
-                        LIVE 가동 중
+                        LIVE 가동
                       </span>
                     </div>
-                    <p className="text-xs text-purple-200/90 font-medium mt-1">
-                      접속 계정: <b className="text-white underline">{teacherEmail || "chsj120@gmail.com"}</b> ({teacherRole}) • 전국 초등학교 실시간 참여율 및 투표 데이터 분석
+                    <p className="text-[11px] sm:text-xs text-purple-200/90 font-medium mt-1">
+                      접속 계정: <b className="text-white underline">{teacherEmail || "chsj120@gmail.com"}</b> ({teacherRole})
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => {
                       showToast("🔄 전국 통계 실시간 동기화 완료", "전국 28개 초등학교의 실시간 접속 및 투표 데이터가 갱신되었습니다.", "success");
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white font-black text-xs border border-purple-400/40 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    className="px-3.5 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white font-black text-xs border border-purple-400/40 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
                   >
                     <span>🔄</span>
-                    <span>실시간 통계 갱신</span>
+                    <span>통계 갱신</span>
                   </button>
                   <button
                     type="button"
@@ -2447,64 +2460,64 @@ export default function TeacherAdminPage() {
                       document.body.removeChild(link);
                       showToast("📥 전국 통계 CSV 다운로드 완료", "전국 학교별 데이터 파일이 생성되었습니다.", "success");
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-black text-xs border border-slate-300 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    className="px-3.5 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-black text-xs border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>전국 리포트 CSV</span>
+                    <span>전국 CSV</span>
                   </button>
                 </div>
               </div>
 
               {/* 핵심 KPI 5종 카드 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
-                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3.5 space-y-1">
-                  <span className="text-[11px] text-purple-300 font-bold block">🏫 전국 참여 학교</span>
-                  <div className="text-xl sm:text-2xl font-black text-white">28<span className="text-sm font-bold text-purple-300 ml-1">개교</span></div>
-                  <span className="text-[10px] text-emerald-400 font-semibold">↑ 전월 대비 +12개교</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-2">
+                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
+                  <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🏫 참여 학교</span>
+                  <div className="text-lg sm:text-2xl font-black text-white">28<span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">개교</span></div>
+                  <span className="text-[9px] sm:text-[10px] text-emerald-400 font-semibold">↑ 전월 대비 +12</span>
                 </div>
 
-                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3.5 space-y-1">
-                  <span className="text-[11px] text-purple-300 font-bold block">👨‍🏫 등록 교사 계정</span>
-                  <div className="text-xl sm:text-2xl font-black text-white">46<span className="text-sm font-bold text-purple-300 ml-1">명</span></div>
-                  <span className="text-[10px] text-purple-300 font-medium">초등 공직자 100% 인증</span>
+                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
+                  <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">👨‍🏫 등록 교사</span>
+                  <div className="text-lg sm:text-2xl font-black text-white">46<span className="text-xs sm:text-sm font-bold text-purple-300 ml-1">명</span></div>
+                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">공직자 100% 인증</span>
                 </div>
 
-                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3.5 space-y-1">
-                  <span className="text-[11px] text-purple-300 font-bold block">🎒 누적 접속 학생</span>
-                  <div className="text-xl sm:text-2xl font-black text-amber-300">8,920<span className="text-sm font-bold text-amber-200 ml-1">명</span></div>
-                  <span className="text-[10px] text-amber-400 font-semibold">실시간 DAU: 1,420명</span>
+                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
+                  <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🎒 접속 학생</span>
+                  <div className="text-lg sm:text-2xl font-black text-amber-300">8,920<span className="text-xs sm:text-sm font-bold text-amber-200 ml-1">명</span></div>
+                  <span className="text-[9px] sm:text-[10px] text-amber-400 font-semibold">DAU: 1,420명</span>
                 </div>
 
-                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3.5 space-y-1">
-                  <span className="text-[11px] text-purple-300 font-bold block">🗳️ 누적 총 투표수</span>
-                  <div className="text-xl sm:text-2xl font-black text-sky-300">24,680<span className="text-sm font-bold text-sky-200 ml-1">표</span></div>
-                  <span className="text-[10px] text-sky-400 font-semibold">학생 79% / 학부모 17%</span>
+                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1">
+                  <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">🗳️ 총 투표수</span>
+                  <div className="text-lg sm:text-2xl font-black text-sky-300">24,680<span className="text-xs sm:text-sm font-bold text-sky-200 ml-1">표</span></div>
+                  <span className="text-[9px] sm:text-[10px] text-sky-400 font-semibold">학생 79% / 부모 17%</span>
                 </div>
 
-                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3.5 space-y-1 col-span-2 sm:col-span-1">
-                  <span className="text-[11px] text-purple-300 font-bold block">📸 총 등록 출품작</span>
-                  <div className="text-xl sm:text-2xl font-black text-rose-300">1,840<span className="text-sm font-bold text-rose-200 ml-1">장</span></div>
-                  <span className="text-[10px] text-purple-300 font-medium">클라우드 R2: 420MB</span>
+                <div className="bg-purple-950/70 border border-purple-500/30 rounded-2xl p-3 sm:p-3.5 space-y-1 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] sm:text-[11px] text-purple-300 font-bold block">📸 등록 출품작</span>
+                  <div className="text-lg sm:text-2xl font-black text-rose-300">1,840<span className="text-xs sm:text-sm font-bold text-rose-200 ml-1">장</span></div>
+                  <span className="text-[9px] sm:text-[10px] text-purple-300 font-medium">R2: 420MB</span>
                 </div>
               </div>
             </div>
 
             {/* 인기 테마 TOP 5 차트 & 학생 투표 시간대 패턴 분석 (2컬럼) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               
               {/* 컬럼 1: 인기 사진전 테마 TOP 5 */}
-              <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
+              <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
                 <div className="flex items-center justify-between border-b-2 border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🔥</span>
-                    <h3 className="font-black text-slate-900 text-base">
-                      전국 초등학교 인기 사진전 테마 TOP 5
+                    <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                      전국 초등학교 인기 테마 TOP 5
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-500">출품작 수 기준</span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-500">출품작 수 기준</span>
                 </div>
 
-                <div className="space-y-3.5 pt-1">
+                <div className="space-y-3 pt-1">
                   {[
                     { rank: 1, title: "우리 반 베프 & 짝꿍 챌린지", icon: "👭", percent: 42, count: "780건", color: "bg-amber-400" },
                     { rank: 2, title: "교실 대청소 비포 & 애프터 챌린지 (2분할)", icon: "🧼", percent: 24, count: "440건", color: "bg-sky-500" },
@@ -2514,15 +2527,15 @@ export default function TeacherAdminPage() {
                   ].map((t) => (
                     <div key={t.rank} className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-black">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-black ${t.rank === 1 ? "bg-amber-400 text-slate-950" : t.rank === 2 ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-600"}`}>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${t.rank === 1 ? "bg-amber-400 text-slate-950" : t.rank === 2 ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-600"}`}>
                             {t.rank}
                           </span>
-                          <span className="text-slate-900">{t.icon} {t.title}</span>
+                          <span className="text-slate-900 truncate text-[11px] sm:text-xs">{t.icon} {t.title}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500 font-bold">{t.count}</span>
-                          <span className="font-mono font-black text-slate-900 w-10 text-right">{t.percent}%</span>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                          <span className="text-slate-500 font-bold text-[10px] sm:text-xs">{t.count}</span>
+                          <span className="font-mono font-black text-slate-900 w-8 text-right text-[11px] sm:text-xs">{t.percent}%</span>
                         </div>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -2534,44 +2547,44 @@ export default function TeacherAdminPage() {
               </div>
 
               {/* 컬럼 2: 학생 접속 및 투표 시간대 패턴 & 인프라 안정성 */}
-              <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
+              <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
                 <div className="flex items-center justify-between border-b-2 border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">📈</span>
-                    <h3 className="font-black text-slate-900 text-base">
-                      학생 접속 및 투표 집중 시간대 분석
+                    <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                      접속 및 투표 집중 시간대 분석
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    서버 부하율 6% (안정)
+                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    서버 부하율 6%
                   </span>
                 </div>
 
-                <div className="space-y-3 pt-1 text-xs">
-                  <div className="bg-sky-50 rounded-2xl p-3.5 border border-sky-200 space-y-1.5">
+                <div className="space-y-2.5 pt-1 text-xs">
+                  <div className="bg-sky-50 rounded-2xl p-3 border border-sky-200 space-y-1">
                     <div className="flex items-center justify-between font-black text-sky-950">
                       <span>📸 1~2교시 창체/미술 (09:00 ~ 10:40)</span>
-                      <span className="text-sky-700 font-mono">트래픽 45% 집중</span>
+                      <span className="text-sky-700 font-mono text-[11px]">45% 집중</span>
                     </div>
                     <p className="text-[11px] text-sky-800 font-medium">
                       학생들이 스마트기기로 사진을 직접 촬영하고 닉네임과 PIN을 설정하여 출품하는 피크 시간대입니다.
                     </p>
                   </div>
 
-                  <div className="bg-amber-50 rounded-2xl p-3.5 border border-amber-200 space-y-1.5">
+                  <div className="bg-amber-50 rounded-2xl p-3 border border-amber-200 space-y-1">
                     <div className="flex items-center justify-between font-black text-amber-950">
                       <span>🗳️ 점심시간 전교 투표 (12:00 ~ 13:30)</span>
-                      <span className="text-amber-800 font-mono">트래픽 35% 집중</span>
+                      <span className="text-amber-800 font-mono text-[11px]">35% 집중</span>
                     </div>
                     <p className="text-[11px] text-amber-800 font-medium">
                       급식 후 교실 및 복도 QR코드로 친구들의 출품작에 스티커 투표를 진행하는 시간대입니다.
                     </p>
                   </div>
 
-                  <div className="bg-rose-50 rounded-2xl p-3.5 border border-rose-200 space-y-1.5">
+                  <div className="bg-rose-50 rounded-2xl p-3 border border-rose-200 space-y-1">
                     <div className="flex items-center justify-between font-black text-rose-950">
-                      <span>👨‍👩‍👧 하교 후 학부모 모바일 투표 (17:00 ~ 21:00)</span>
-                      <span className="text-rose-800 font-mono">트래픽 20% 분산</span>
+                      <span>👨‍👩‍👧 하교 후 학부모 투표 (17:00 ~ 21:00)</span>
+                      <span className="text-rose-800 font-mono text-[11px]">20% 분산</span>
                     </div>
                     <p className="text-[11px] text-rose-800 font-medium">
                       가정통신문 안내를 통해 학부모들이 자녀 작품을 감상하고 응원 투표를 행사하는 시간대입니다.
@@ -2583,21 +2596,21 @@ export default function TeacherAdminPage() {
             </div>
 
             {/* 전국 학교별 실시간 운영 현황 테이블 */}
-            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
+            <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-4 sm:p-6 shadow-[0_6px_0_0_#1E293B] space-y-4">
               <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-100 pb-3 gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🏫</span>
-                  <h3 className="font-black text-slate-900 text-base">
+                  <h3 className="font-black text-slate-900 text-sm sm:text-base">
                     전국 학교별 실시간 운영 현황 (최근 등록 순)
                   </h3>
                 </div>
                 <div className="text-xs font-bold text-slate-500">
-                  총 <b className="text-slate-900">6개교</b> 표본 모니터링 중
+                  총 <b className="text-slate-900">6개교</b> 모니터링
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-left text-xs border-collapse min-w-[650px]">
                   <thead>
                     <tr className="border-b-2 border-slate-900 bg-slate-50 text-slate-700 font-black">
                       <th className="p-3">학교명 / 지역</th>
@@ -2769,8 +2782,8 @@ export default function TeacherAdminPage() {
       {/* 4. 특별상 직접 수여 모달 (요구사항: 특별상 명칭 입력 및 학생 지정) */}
       {/* ==================================================================== */}
       {isSpecialAwardModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl border-4 border-slate-900 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl border-4 border-slate-900 shadow-2xl p-4 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto my-auto">
             
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">

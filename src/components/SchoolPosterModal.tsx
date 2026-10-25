@@ -130,55 +130,55 @@ export default function SchoolPosterModal({
         </div>
 
         {/* 2-트랙 대상 선택 탭: 교내 부착 학생용 vs 가정통신문 학부모용 */}
-        <div className="bg-amber-50 px-5 py-2.5 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-amber-950">포스터 대상 선택:</span>
+        <div className="bg-amber-50 px-3 sm:px-5 py-2.5 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+            <span className="text-xs font-black text-amber-950">대상:</span>
             <div className="bg-white p-1 rounded-xl border border-amber-300 flex items-center gap-1 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setTargetAudience("student")}
-                className={`px-3 py-1 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   targetAudience === "student"
                     ? "bg-slate-900 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>교내 교실 부착용 (학생)</span>
+                <span>교실 부착용 (학생)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setTargetAudience("parent")}
-                className={`px-3 py-1 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   targetAudience === "parent"
                     ? "bg-rose-600 text-white shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Heart className="w-3.5 h-3.5" />
-                <span>가정통신문용 (학부모)</span>
+                <span>가정통신문 (학부모)</span>
               </button>
             </div>
           </div>
 
           {/* 인쇄 및 PDF 저장 버튼 */}
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2">
             <button
               type="button"
               onClick={handlePrint}
-              className="h-8 px-3 rounded-xl border border-slate-800 bg-white hover:bg-slate-100 text-slate-900 font-black text-xs flex items-center gap-1 shadow-2xs cursor-pointer"
+              className="h-8 px-3 rounded-xl border border-slate-800 bg-white hover:bg-slate-100 text-slate-900 font-black text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>바로 인쇄</span>
+              <span>인쇄</span>
             </button>
             <button
               type="button"
               onClick={handleDownloadPdf}
               disabled={isPdfGenerating}
-              className="h-8 px-3 rounded-xl border border-slate-900 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+              className="h-8 px-3 rounded-xl border border-slate-900 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>{isPdfGenerating ? "PDF 생성 중..." : "PDF 다운로드"}</span>
+              <span>{isPdfGenerating ? "생성 중..." : "PDF 저장"}</span>
             </button>
           </div>
         </div>

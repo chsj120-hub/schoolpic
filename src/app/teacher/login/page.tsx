@@ -351,7 +351,7 @@ export default function TeacherAuthPage() {
     <div className="min-h-screen bg-[#F0F7FF] flex justify-center items-center p-3 sm:p-5 antialiased selection:bg-amber-200">
       
       {/* 교사용 인증/가입 메인 카드 */}
-      <div className="w-full max-w-[460px] bg-white rounded-[2.5rem] border-[3px] border-slate-900 shadow-[0_12px_0_0_#1E293B] p-6 relative overflow-hidden flex flex-col justify-between my-4">
+      <div className="w-full max-w-[460px] bg-white rounded-3xl sm:rounded-[2.5rem] border-[3px] border-slate-900 shadow-[0_8px_0_0_#1E293B] sm:shadow-[0_12px_0_0_#1E293B] p-4 sm:p-6 relative overflow-hidden flex flex-col justify-between my-2 sm:my-4">
         
         {/* 상단 장식 구름 & 별 */}
         <div className="absolute top-4 left-5 text-sky-400 text-xl select-none animate-pulse">☁️</div>
