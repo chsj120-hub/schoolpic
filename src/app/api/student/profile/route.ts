@@ -6,11 +6,38 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { schoolCode, grade, classNum, studentNum, pin, nickname } = body;
+    const { action, schoolCode, grade, classNum, studentNum, pin, nickname, resetPin = "0000" } = body;
 
     const supabase = getSupabaseServerClient();
     if (!supabase) {
       return NextResponse.json({ success: true, mode: "LOCAL_FALLBACK" });
+    }
+
+    // [교사 관리자 전용] 학생 PIN 0000 초기화 요청 처리
+    if (action === "RESET_PIN") {
+      let schoolId: string | null = null;
+      const { data: s } = await supabase
+        .from("schools")
+        .select("id")
+        .eq("school_code", schoolCode)
+        .maybeSingle();
+
+      if (s) schoolId = s.id;
+
+      if (schoolId) {
+        await supabase
+          .from("student_profiles")
+          .update({ pin_code_hash: resetPin })
+          .eq("school_id", schoolId)
+          .eq("grade", Number(grade))
+          .eq("class_num", Number(classNum))
+          .eq("student_num", Number(studentNum));
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `[${grade}학년 ${classNum}반 ${studentNum}번] 학생의 PIN이 [${resetPin}]으로 안전하게 초기화되었습니다.`,
+      });
     }
 
     // 1. 학교 조회 (없으면 기본 등록)

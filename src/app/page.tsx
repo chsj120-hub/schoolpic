@@ -1,5 +1,5 @@
-import TeacherAdminPage from "./teacher/page";
+import TeacherAuthPage from "./teacher/login/page";
 
 export default function Home() {
-  return <TeacherAdminPage />;
+  return <TeacherAuthPage />;
 }

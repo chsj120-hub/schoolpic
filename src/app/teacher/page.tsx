@@ -84,9 +84,12 @@ export default function TeacherAdminPage() {
         } catch (e) {
           console.error(e);
         }
+      } else {
+        // 미로그인 상태로 직접 접근 시 로그인 화면으로 안전 리다이렉트
+        router.push("/");
       }
     }
-  }, []);
+  }, [router]);
 
   // 4대 네비게이션 탭 상태
   const [activeNav, setActiveNav] = useState<"dashboard" | "create" | "review" | "export">("dashboard");
@@ -109,6 +112,31 @@ export default function TeacherAdminPage() {
       is_public_shared: sub.is_public_shared ?? (idx === 0),
     }));
   });
+
+  // Supabase 실시간 출품작 동기화 (학생들이 R2 및 DB에 출품한 작품 실시간 반영)
+  useEffect(() => {
+    async function loadServerSubmissions() {
+      try {
+        const res = await fetch(`/api/submissions?schoolCode=${schoolCode}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.submissions) && data.submissions.length > 0) {
+          setSubmissions((prev) => {
+            const dbIds = new Set(data.submissions.map((s: any) => s.id));
+            const existingFiltered = prev.filter((s) => !dbIds.has(s.id));
+            const formatted = data.submissions.map((item: any) => ({
+              ...item,
+              isInternalApproved: item.isInternalApproved ?? true,
+              isExternalApproved: item.is_public_shared ?? false,
+            }));
+            return [...formatted, ...existingFiltered];
+          });
+        }
+      } catch (e) {
+        console.warn("Could not sync submissions from server:", e);
+      }
+    }
+    loadServerSubmissions();
+  }, [schoolCode]);
 
   // 모달 상태
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -347,14 +375,31 @@ export default function TeacherAdminPage() {
     }
   };
 
-  // PIN 0000 초기화
-  const handleResetPin = (grade?: number, classNum?: number, num?: number) => {
+  // PIN 0000 초기화 (로컬 + Supabase DB 동시 반영)
+  const handleResetPin = async (grade?: number, classNum?: number, num?: number) => {
     const g = grade ?? pinTargetGrade;
     const c = classNum ?? pinTargetClass;
     const n = num ?? pinTargetNumber;
     
     resetStudentPin(g, c, n, "0000");
     setSubmissions((prev) => [...prev]);
+
+    try {
+      await fetch("/api/student/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_PIN",
+          schoolCode,
+          grade: g,
+          classNum: c,
+          studentNum: n,
+          resetPin: "0000",
+        }),
+      });
+    } catch (err) {
+      console.warn("DB pin reset error:", err);
+    }
 
     showToast(
       `🔑 [${g}학년 ${c}반 ${n}번] PIN 0000 초기화 완료`,
@@ -624,7 +669,12 @@ export default function TeacherAdminPage() {
             </div>
             <button
               type="button"
-              onClick={() => router.push("/teacher/login")}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("schoolpick_teacher");
+                }
+                router.push("/");
+              }}
               className="h-9 px-2.5 rounded-xl border border-slate-300 hover:border-rose-400 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5" />

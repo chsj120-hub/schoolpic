@@ -34,10 +34,38 @@ export default function TeacherAuthPage() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
 
   // ===================== [로그인 상태] =====================
-  const [loginEmail, setLoginEmail] = useState("teacher_kim@korea.kr");
-  const [loginPassword, setLoginPassword] = useState("123456");
+  const [loginEmail, setLoginEmail] = useState("chsj120@gmail.com");
+  const [loginPassword, setLoginPassword] = useState("blue7412");
   const [loginError, setLoginError] = useState("");
   const [isMagicLinkSent, setIsMagicLinkSent] = useState(false);
+  const [magicLinkInfo, setMagicLinkInfo] = useState<{ url?: string; message?: string } | null>(null);
+
+  // 매직링크 URL 파라미터 감지 및 자동 로그인 처리
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (token) {
+        (async () => {
+          try {
+            const res = await fetch("/api/auth/teacher", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "VERIFY_MAGIC_LINK", token }),
+            });
+            const data = await res.json();
+            if (data.success && data.account) {
+              localStorage.setItem("schoolpick_teacher", JSON.stringify(data.account));
+              localStorage.setItem("schoolpick_teacher_account", JSON.stringify(data.account));
+              router.push("/teacher");
+            }
+          } catch (e) {
+            console.error("Magic link verification error:", e);
+          }
+        })();
+      }
+    }
+  }, [router]);
 
   // ===================== [회원가입 4단계 상태] =====================
   // step: 1 (이메일 인증) -> 2 (학교 검색) -> 3 (코드 매핑/발급) -> 4 (비밀번호 지정)
@@ -98,9 +126,48 @@ export default function TeacherAuthPage() {
   const [step4Error, setStep4Error] = useState("");
 
   // -------------------------------------------------------------
-  // 로그인 처리
+  // 개발자/관리자 테스트 계정 (chsj120@gmail.com / blue7412) 1초 퀵 로그인
   // -------------------------------------------------------------
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleQuickDevLogin = async () => {
+    setLoginEmail("chsj120@gmail.com");
+    setLoginPassword("blue7412");
+
+    const devAccount: TeacherAccount = {
+      email: "chsj120@gmail.com",
+      name: "관리자 선생님",
+      schoolId: "sch-test-001",
+      schoolName: "테스트초등학교",
+      schoolCode: "TST-7777",
+      schoolRegion: "서울",
+      schoolLevel: "E",
+      roleGrade: "총괄 관리자",
+      isJoinedExisting: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await fetch("/api/auth/teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "LOGIN",
+          email: "chsj120@gmail.com",
+          password: "blue7412",
+        }),
+      });
+    } catch (e) {
+      console.warn("DB login sync fallback:", e);
+    }
+
+    localStorage.setItem("schoolpick_teacher", JSON.stringify(devAccount));
+    localStorage.setItem("schoolpick_teacher_account", JSON.stringify(devAccount));
+    router.push("/teacher");
+  };
+
+  // -------------------------------------------------------------
+  // 로그인 처리 (Supabase DB 연동)
+  // -------------------------------------------------------------
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
 
@@ -114,31 +181,76 @@ export default function TeacherAuthPage() {
       return;
     }
 
-    // 기본 로그인 세션 저장
-    if (typeof window !== "undefined") {
-      const existingAccountStr = localStorage.getItem("schoolpick_teacher_account");
-      let account: TeacherAccount;
-      if (existingAccountStr) {
-        account = JSON.parse(existingAccountStr);
-      } else {
-        account = {
+    try {
+      const res = await fetch("/api/auth/teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "LOGIN",
           email: loginEmail,
-          name: "김하늘 선생님",
-          schoolId: "sch-001",
-          schoolName: "한재초등학교",
-          schoolCode: "JNE-3012",
-          schoolRegion: "전남",
-          schoolLevel: "E",
-          roleGrade: "5학년 2반 담임",
-          isJoinedExisting: true,
-          createdAt: new Date().toISOString(),
-        };
-        localStorage.setItem("schoolpick_teacher_account", JSON.stringify(account));
+          password: loginPassword,
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setLoginError(data.message || "로그인에 실패했습니다.");
+        return;
       }
+
+      const account: TeacherAccount = data.account || {
+        email: loginEmail,
+        name: "김하늘 선생님",
+        schoolId: "sch-001",
+        schoolName: "한재초등학교",
+        schoolCode: "JNE-3012",
+        schoolRegion: "전남",
+        schoolLevel: "E",
+        roleGrade: "5학년 2반 담임",
+        isJoinedExisting: true,
+        createdAt: new Date().toISOString(),
+      };
+
       localStorage.setItem("schoolpick_teacher", JSON.stringify(account));
+      localStorage.setItem("schoolpick_teacher_account", JSON.stringify(account));
+      router.push("/teacher");
+    } catch (err: any) {
+      setLoginError("서버 통신 중 오류가 발생했습니다.");
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 매직링크 발송 요청 처리
+  // -------------------------------------------------------------
+  const handleSendMagicLink = async () => {
+    if (!loginEmail.includes("@")) {
+      setLoginError("매직링크를 수신할 메일 주소를 입력해주세요.");
+      return;
     }
 
-    router.push("/teacher");
+    try {
+      const res = await fetch("/api/auth/teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MAGIC_LINK",
+          email: loginEmail,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsMagicLinkSent(true);
+        setMagicLinkInfo({
+          url: data.magicUrl,
+          message: data.message,
+        });
+      } else {
+        setLoginError(data.message || "매직링크 생성 실패");
+      }
+    } catch (err) {
+      console.warn("Magic link request error:", err);
+      setIsMagicLinkSent(true);
+    }
   };
 
   // -------------------------------------------------------------
@@ -317,11 +429,34 @@ export default function TeacherAuthPage() {
                 </p>
               </div>
 
+              {/* [개발자/관리자 공식 테스트 계정 퀵 로그인 배너] */}
+              <div className="bg-amber-50/90 border-[2px] border-amber-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>개발자·관리자 전용 테스트 계정</span>
+                  </div>
+                  <p className="text-[11px] font-bold text-amber-900 truncate">
+                    테스트초등학교 (TST-7777) | chsj120@gmail.com
+                  </p>
+                  <p className="text-[10px] font-mono font-bold text-amber-700">
+                    비밀번호: blue7412 (자동 세팅)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQuickDevLogin}
+                  className="py-2 px-3.5 rounded-xl bg-[#FFC72C] hover:bg-amber-300 active:translate-y-0.5 text-slate-950 font-black text-xs border-[2px] border-slate-900 shadow-[0_2px_0_0_#1E293B] cursor-pointer shrink-0 transition-all text-center"
+                >
+                  ⚡ 1초 자동 로그인
+                </button>
+              </div>
+
               <form onSubmit={handleLoginSubmit} className="space-y-3">
                 {/* 이메일 아이디 */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-black text-slate-700 block">
-                    공직자 메일 아이디
+                    공직자 메일 아이디 (또는 테스트 이메일)
                   </label>
                   <div className="bg-white rounded-2xl border-[2px] border-slate-900 px-3 py-2.5 flex items-center gap-2 shadow-[inset_0_2px_4px_rgba(0,0,0,0.04)]">
                     <Mail className="w-4 h-4 text-slate-400 shrink-0" />
@@ -331,7 +466,7 @@ export default function TeacherAuthPage() {
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="teacher_kim@korea.kr"
+                      placeholder="chsj120@gmail.com 또는 teacher@korea.kr"
                       className="w-full text-xs font-bold text-slate-900 focus:outline-none bg-transparent"
                     />
                   </div>
@@ -374,17 +509,29 @@ export default function TeacherAuthPage() {
               </form>
 
               {/* 1회용 매직링크 옵션 */}
-              <div className="bg-[#EBF5FF] border-[2px] border-[#93C5FD] rounded-2xl p-3 text-center space-y-1.5">
+              <div className="bg-[#EBF5FF] border-[2px] border-[#93C5FD] rounded-2xl p-3.5 text-center space-y-2">
                 <p className="text-[11px] font-bold text-sky-950">
-                  비밀번호를 잊으셨나요? 메일함의 1회용 링크로 로그인할 수 있습니다.
+                  비밀번호를 잊으셨나요? 메일함의 1회용 매직링크로 로그인할 수 있습니다.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setIsMagicLinkSent(true)}
-                  className="text-xs font-black text-sky-700 underline underline-offset-2 hover:text-sky-900 cursor-pointer"
+                  onClick={handleSendMagicLink}
+                  className="text-xs font-black text-sky-700 underline underline-offset-2 hover:text-sky-900 cursor-pointer block mx-auto"
                 >
-                  {isMagicLinkSent ? "✓ 매직링크 발송 완료 (메일함을 확인하세요)" : "✉️ 1회용 매직링크 받기"}
+                  {isMagicLinkSent ? "✓ 매직링크 발송 완료 (다시 받기)" : "✉️ 1회용 매직링크 발송하기"}
                 </button>
+
+                {magicLinkInfo?.url && (
+                  <div className="bg-white p-2.5 rounded-xl border border-sky-300 text-[11px] font-bold text-sky-900 space-y-1 text-left animate-in fade-in duration-200">
+                    <span className="block font-black text-emerald-600">✓ 발송된 매직링크 즉시 접속:</span>
+                    <a
+                      href={magicLinkInfo.url}
+                      className="text-sky-600 underline break-all hover:text-sky-800"
+                    >
+                      {window.location.origin}{magicLinkInfo.url}
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* 신규 가입 유도 */}
