@@ -45,7 +45,7 @@ export default function SchoolPosterModal({
   }, []);
 
   const studentShareUrl = `${origin}/c/${challenge.id}`;
-  const parentShareUrl = `${origin}/parents`;
+  const parentShareUrl = `${origin}/parents?c=${challenge.id}&school=${encodeURIComponent(schoolName)}`;
 
   // QR 코드 실시간 생성
   useEffect(() => {

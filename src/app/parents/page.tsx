@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { SAMPLE_SUBMISSIONS, INITIAL_CHALLENGES } from "@/lib/constants";
+import { useSearchParams } from "next/navigation";
+import { SAMPLE_SUBMISSIONS, INITIAL_CHALLENGES, getChallengeByIdOrTheme } from "@/lib/constants";
 import { PhotoSubmission, Challenge } from "@/types";
 import {
   Camera,
@@ -20,8 +21,26 @@ import {
   Award
 } from "lucide-react";
 
-export default function ParentsVotingPage() {
-  const [challenge] = useState<Challenge>(INITIAL_CHALLENGES[0]);
+function ParentsVotingContent() {
+  const searchParams = useSearchParams();
+  const challengeId = searchParams.get("c") || "challenge-1";
+  const schoolParam = searchParams.get("school") || "한재초등학교";
+
+  const [challenge, setChallenge] = useState<Challenge>(() => getChallengeByIdOrTheme(challengeId));
+
+  useEffect(() => {
+    if (challengeId) {
+      setChallenge(getChallengeByIdOrTheme(challengeId));
+      fetch(`/api/challenges?id=${challengeId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.challenge) {
+            setChallenge(data.challenge);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [challengeId]);
   const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
     return SAMPLE_SUBMISSIONS.map((sub, idx) => ({
       ...sub,
@@ -205,7 +224,7 @@ export default function ParentsVotingPage() {
             <span className="text-3xl">🏫</span>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
-                한재초등학교 디지털 사진전
+                {schoolParam || challenge.schoolName || "한재초등학교"} {challenge.title}
               </h1>
               <span className="text-xs sm:text-sm font-black text-slate-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">
                 (학부모 전용관)
@@ -744,5 +763,22 @@ export default function ParentsVotingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ParentsVotingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F0F7FF] flex items-center justify-center p-4">
+          <div className="text-center space-y-2">
+            <span className="text-3xl animate-bounce inline-block">🏫</span>
+            <p className="text-sm font-black text-slate-800">학부모 전용관 사진전을 불러오는 중입니다...</p>
+          </div>
+        </div>
+      }
+    >
+      <ParentsVotingContent />
+    </Suspense>
   );
 }

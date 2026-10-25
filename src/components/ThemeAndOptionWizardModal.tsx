@@ -84,6 +84,7 @@ export default function ThemeAndOptionWizardModal({
   const [enableStudentVote, setEnableStudentVote] = useState(true);
   const [enableTeacherVote, setEnableTeacherVote] = useState(true);
   const [enableParentVote, setEnableParentVote] = useState(false);
+  const [showGradeClassOnFrame, setShowGradeClassOnFrame] = useState(false); // 띠지 학년반번호 노출 여부 (기본: 비공개)
   
   // 날짜/시간 선택 상태 (기본값: 오늘 날짜 기준 자동 최신화)
   const initialDates = getTodayDefaultDates();
@@ -129,9 +130,11 @@ export default function ThemeAndOptionWizardModal({
     setTimeout(() => setCopiedTip(false), 2000);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    // 테마 ID 기반의 직관적인 ID 우선 적용 (예: culture-10)
+    const challengeId = selectedTheme.id;
     const newChallenge: Challenge = {
-      id: `challenge-${Date.now()}`,
+      id: challengeId,
       title: `${selectedTheme.title} (${selectedTheme.tag})`,
       themeId: selectedTheme.id,
       mode: activeTab,
@@ -157,10 +160,24 @@ export default function ThemeAndOptionWizardModal({
       votingEndTime,
       voteLimitType: voteMethod,
       isBlindSubmission: false,
+      showGradeClassOnFrame,
+      schoolName: schoolName || "광주한재초등학교",
+      schoolCode: "JNE-3012",
       submissionCount: 0,
       totalVotes: 0,
       createdAt: new Date().toISOString().split("T")[0],
     };
+
+    // 서버 API 동기화 (학생 및 학부모 기기에서 바로 접속 가능하도록 보존)
+    try {
+      await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenge: newChallenge }),
+      });
+    } catch (e) {
+      console.warn("Failed to POST challenge to /api/challenges:", e);
+    }
 
     onCreate(newChallenge);
     setStep(1);
@@ -531,6 +548,28 @@ export default function ThemeAndOptionWizardModal({
                     <span className="text-[11px] text-slate-400 font-normal">(감상 전용 갤러리만 오픈 / 초상권 민원 최소화)</span>
                   </span>
                 </label>
+
+                {/* 띠지/프레임 학년·반·번호 노출 여부 선택 */}
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showGradeClassOnFrame}
+                      onChange={(e) => setShowGradeClassOnFrame(e.target.checked)}
+                      className="w-4 h-4 rounded text-sky-600 border-slate-400 mt-0.5"
+                    />
+                    <div>
+                      <span className="font-black text-slate-900 block">
+                        사진 프레임(띠지)에 학년·반·번호 표시하기
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {showGradeClassOnFrame
+                          ? "✅ [공개]: 프레임 띠지에 '5학년 2반 14번 5반 날다람쥐 작가님'으로 모두 표시됩니다."
+                          : "🔒 [비공개 (추천 기본값)]: 프레임 띠지에서 학년·반·번호가 숨겨지고 '5반 날다람쥐 작가님' 닉네임만 표시됩니다."}
+                      </span>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
 

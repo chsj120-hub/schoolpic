@@ -319,6 +319,8 @@ export const SUBJECT_THEMES: ThemeTemplate[] = [
   },
 ];
 
+export const THEME_TEMPLATES: ThemeTemplate[] = [...CULTURE_THEMES, ...SUBJECT_THEMES];
+
 export const INITIAL_CHALLENGES: Challenge[] = [
   {
     id: "challenge-1",
@@ -389,7 +391,93 @@ export const INITIAL_CHALLENGES: Challenge[] = [
     totalVotes: 0,
     createdAt: "2026-10-22",
   },
+  {
+    id: "culture-10",
+    title: "우리 학교 인플루언서 선발전 (#인기스타 #소통 #영향력)",
+    themeId: "culture-10",
+    mode: "culture",
+    icon: "⭐",
+    tag: "#인기스타 #소통 #영향력",
+    description: "교내 안전망 안에서 자신만의 개성과 끼(OOTD, 개인기 포즈)를 건강하게 표출하는 축제!",
+    category: "미디어 리터러시 / 끼와 재능 발산 / 방송반 연계",
+    intent: "무분별한 외부 SNS 대신, 교내 안전망 안에서 자신만의 개성과 끼를 건강하게 표출하는 디지털 축제.",
+    studentRules: [
+      "오늘 나의 학교 패션(체육복 코디, 가방 꾸미기 키링 자랑 등) 한 컷",
+      "아이돌 앨범 자켓이나 숏폼 챌린지 킬링 파트 정지 포즈 재현",
+      "나만의 개성 넘치는 끼와 매력을 당당하게 표현하기"
+    ],
+    framesAndStickers: ["인스타그램 UI 프레임", "하트 폭탄 이펙트", "공식 인증 파란 배지", "교내 트렌드세터"],
+    teacherTips: "방송반 연계 및 미디어 교육 — '방송반과 연계하여 1등 학생에게 점심시간 교내 방송 1일 일일 DJ 또는 인터뷰 기회를 부여하고 건전한 미디어 자아 표현 역량 지도.'",
+    targetGrade: "전교생",
+    teacherName: "정미디어 선생님",
+    status: "SUBMITTING",
+    submissionStartDate: "2026-10-25",
+    submissionStartTime: "09:00",
+    submissionEndDate: "2026-10-31",
+    submissionEndTime: "18:00",
+    votingStartDate: "2026-11-01",
+    votingStartTime: "09:00",
+    votingEndDate: "2026-11-07",
+    votingEndTime: "18:00",
+    voteLimitType: "TOTAL_3",
+    isBlindSubmission: false,
+    showGradeClassOnFrame: false,
+    schoolName: "광주한재초등학교",
+    schoolCode: "JNE-3012",
+    submissionCount: 24,
+    totalVotes: 142,
+    createdAt: "2026-10-25",
+  },
 ];
+
+// ID 또는 테마 코드로 사진전을 안전하게 조회하는 유틸리티
+export function getChallengeByIdOrTheme(id: string): Challenge {
+  // 1. 직접 ID 일치
+  const direct = INITIAL_CHALLENGES.find((c) => c.id === id);
+  if (direct) return direct;
+
+  // 2. 테마 템플릿(18개) 일치 검사
+  const theme = THEME_TEMPLATES.find((t) => t.id === id || id.includes(t.id));
+  if (theme) {
+    return {
+      id: id,
+      title: `${theme.title} (${theme.tag})`,
+      themeId: theme.id,
+      mode: theme.mode,
+      icon: theme.icon,
+      tag: theme.tag,
+      description: theme.desc,
+      category: theme.category,
+      intent: theme.intent,
+      studentRules: theme.studentRules,
+      framesAndStickers: theme.framesAndStickers,
+      teacherTips: theme.teacherTips,
+      specialGimmick: theme.specialGimmick,
+      targetGrade: "전교생",
+      teacherName: "선생님",
+      status: "SUBMITTING",
+      submissionStartDate: "2026-10-25",
+      submissionStartTime: "09:00",
+      submissionEndDate: "2026-10-31",
+      submissionEndTime: "18:00",
+      votingStartDate: "2026-11-01",
+      votingStartTime: "09:00",
+      votingEndDate: "2026-11-07",
+      votingEndTime: "18:00",
+      voteLimitType: "TOTAL_3",
+      isBlindSubmission: false,
+      showGradeClassOnFrame: false,
+      schoolName: "광주한재초등학교",
+      schoolCode: "JNE-3012",
+      submissionCount: 0,
+      totalVotes: 0,
+      createdAt: "2026-10-25",
+    };
+  }
+
+  // 3. 기본값
+  return INITIAL_CHALLENGES[0];
+}
 
 export const SAMPLE_SUBMISSIONS: PhotoSubmission[] = [
   {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { INITIAL_CHALLENGES, SAMPLE_SUBMISSIONS } from "@/lib/constants";
+import { INITIAL_CHALLENGES, SAMPLE_SUBMISSIONS, getChallengeByIdOrTheme } from "@/lib/constants";
 import { Challenge, PhotoSubmission } from "@/types";
 import CameraCanvasComposerModal, { FramePresetType } from "@/components/CameraCanvasComposerModal";
 import {
@@ -34,20 +34,27 @@ export default function StudentChallengePage() {
   const router = useRouter();
   const challengeId = (params?.id as string) || "challenge-1";
 
-  // 현재 챌린지 정보 탐색
+  // 현재 챌린지 정보 탐색 (ID 및 18개 테마 코드 동적 지원)
   const [challenge, setChallenge] = useState<Challenge>(() => {
-    const found = INITIAL_CHALLENGES.find((c) => c.id === challengeId);
-    return found || INITIAL_CHALLENGES[0];
+    return getChallengeByIdOrTheme(challengeId);
   });
 
-  // URL 파라미터 변경 시 challenge 상태 업데이트
+  // URL 파라미터 변경 시 challenge 상태 업데이트 및 서버/로컬스토리지 실시간 동기화
   useEffect(() => {
-    if (params?.id) {
-      const found = INITIAL_CHALLENGES.find((c) => c.id === params.id);
-      if (found) {
-        setChallenge(found);
-      }
-    }
+    if (!params?.id) return;
+    const cid = params.id as string;
+    const resolved = getChallengeByIdOrTheme(cid);
+    setChallenge(resolved);
+
+    // 서버 API 동기화 (원격 개설된 사진전 실시간 수신)
+    fetch(`/api/challenges?id=${cid}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.challenge) {
+          setChallenge(json.challenge);
+        }
+      })
+      .catch((err) => console.warn("Challenge fetch error:", err));
   }, [params?.id]);
 
   // 출품작 목록
@@ -595,7 +602,9 @@ export default function StudentChallengePage() {
                   📸 내가 출품한 작품 (접수 완료)
                 </span>
                 <span className="text-[11px] font-bold text-slate-500">
-                  {myExistingSubmission.studentGrade}학년 {myExistingSubmission.studentClass}반 {myExistingSubmission.studentNumber}번 {myExistingSubmission.nickname}
+                  {challenge.showGradeClassOnFrame
+                    ? `${myExistingSubmission.studentGrade}학년 ${myExistingSubmission.studentClass}반 ${myExistingSubmission.studentNumber}번 ${myExistingSubmission.nickname}`
+                    : `${myExistingSubmission.nickname} 작가님`}
                 </span>
               </div>
 
@@ -832,7 +841,9 @@ export default function StudentChallengePage() {
                         )}
 
                         <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded-lg">
-                          {item.studentGrade}학년 {item.studentClass}반 {item.studentNumber}번 {item.nickname}
+                          {challenge.showGradeClassOnFrame
+                            ? `${item.studentGrade}학년 ${item.studentClass}반 ${item.studentNumber}번 ${item.nickname}`
+                            : `${item.nickname} 작가님`}
                         </div>
 
                         {/* 클릭하여 전체보기 힌트 배너 */}
@@ -949,8 +960,9 @@ export default function StudentChallengePage() {
           onClose={() => setIsUploadModalOpen(false)}
           themeId={challenge.themeId}
           themeTitle={challenge.title}
+          showGradeClassOnFrame={challenge.showGradeClassOnFrame}
           studentInfo={{
-            schoolName: "OO초등학교",
+            schoolName: challenge.schoolName || "광주한재초등학교",
             grade: studentGrade,
             classNum: studentClass,
             studentNum: studentNumber,

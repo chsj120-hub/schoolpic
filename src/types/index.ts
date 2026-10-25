@@ -38,6 +38,9 @@ export interface Challenge {
   votingEndTime?: string; // HH:mm
   voteLimitType: "DAILY_3" | "TOTAL_3" | "ONE_1";
   isBlindSubmission: boolean; // 출품작 블라인드 여부
+  showGradeClassOnFrame?: boolean; // 띠지/프레임에 학년·반·번호 노출 여부 (false면 닉네임만 노출)
+  schoolName?: string; // 학교명
+  schoolCode?: string; // 학교 고유 코드
   submissionCount: number;
   totalVotes: number;
   createdAt: string;

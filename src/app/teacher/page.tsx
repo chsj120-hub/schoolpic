@@ -355,6 +355,33 @@ export default function TeacherAdminPage() {
     );
   };
 
+  // 사진 프레임 띠지 학년·반·번호 노출 여부 원터치 토글 (대시보드에서 즉시 변경)
+  const handleToggleGradeClassDisplay = () => {
+    if (!currentChallenge) return;
+    const nextVal = !currentChallenge.showGradeClassOnFrame;
+    const updated = challenges.map((ch) =>
+      ch.id === selectedChallengeId ? { ...ch, showGradeClassOnFrame: nextVal } : ch
+    );
+    setChallenges(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+    }
+    // 서버 API 동기화
+    fetch("/api/challenges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challenge: { ...currentChallenge, showGradeClassOnFrame: nextVal } }),
+    }).catch(() => {});
+
+    showToast(
+      nextVal ? "🏷️ 띠지 공개 설정: 학년·반·번호 모두 표시" : "🔒 띠지 안심 설정: 닉네임만 표시 (비공개)",
+      nextVal
+        ? "사진 프레임 하단 띠지에 '5학년 2반 14번 5반 날다람쥐 작가님'으로 표시됩니다."
+        : "사진 프레임 하단 띠지에 학년·반·번호가 숨겨지고 '5반 날다람쥐 작가님'만 표시됩니다.",
+      "info"
+    );
+  };
+
   // 교직원 투표 상태 및 핸들러 (요청: 교직원 또한 갤러리 검수 승인시 교직원 투표 기능 구현)
   const [teacherVotedMap, setTeacherVotedMap] = useState<Record<string, boolean>>({});
 
@@ -1038,6 +1065,20 @@ export default function TeacherAdminPage() {
                   >
                     <MonitorPlay className="w-4 h-4 text-indigo-600" />
                     <span>수업 발표 모드</span>
+                  </button>
+
+                  {/* 띠지 학년·반·번호 노출 여부 원터치 토글 버튼 */}
+                  <button
+                    type="button"
+                    onClick={handleToggleGradeClassDisplay}
+                    className={`py-2 px-3 rounded-xl font-black text-xs border-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+                      currentChallenge.showGradeClassOnFrame
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-950 hover:bg-emerald-100"
+                        : "bg-slate-50 border-slate-400 text-slate-800 hover:bg-slate-100"
+                    }`}
+                    title="사진 프레임 하단 띠지에 학년·반·번호 노출 여부를 토글합니다."
+                  >
+                    <span>{currentChallenge.showGradeClassOnFrame ? "🏷️ 띠지: 학년·반·번호 노출" : "🔒 띠지: 닉네임만 표시"}</span>
                   </button>
                 </div>
               </div>

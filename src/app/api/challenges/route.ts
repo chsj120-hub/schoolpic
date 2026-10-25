@@ -1,0 +1,65 @@
+import { NextResponse } from "next/server";
+import { INITIAL_CHALLENGES, getChallengeByIdOrTheme } from "@/lib/constants";
+import { Challenge } from "@/types";
+
+// 인메모리 및 영구 캐시 (서버 수명 주기 내 보존)
+const challengesStore: Record<string, Challenge> = {};
+
+// 초기 챌린지 등록
+INITIAL_CHALLENGES.forEach((c) => {
+  challengesStore[c.id] = c;
+});
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  const schoolCode = searchParams.get("schoolCode");
+
+  // 특정 ID 조회
+  if (id) {
+    if (challengesStore[id]) {
+      return NextResponse.json({ success: true, challenge: challengesStore[id] });
+    }
+    const resolved = getChallengeByIdOrTheme(id);
+    return NextResponse.json({ success: true, challenge: resolved });
+  }
+
+  // 전체 또는 학교별 목록 반환
+  let list = Object.values(challengesStore);
+  if (schoolCode) {
+    list = list.filter((c) => !c.schoolCode || c.schoolCode === schoolCode);
+  }
+
+  return NextResponse.json({
+    success: true,
+    challenges: list,
+  });
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const challenge: Challenge = body.challenge;
+
+    if (!challenge || !challenge.id) {
+      return NextResponse.json(
+        { success: false, error: "Invalid challenge data" },
+        { status: 400 }
+      );
+    }
+
+    // 서버 스토어에 보존
+    challengesStore[challenge.id] = challenge;
+
+    return NextResponse.json({
+      success: true,
+      challenge,
+    });
+  } catch (error) {
+    console.error("Failed to save challenge:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

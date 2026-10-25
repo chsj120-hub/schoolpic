@@ -56,6 +56,7 @@ interface CameraCanvasComposerModalProps {
   }) => void;
   themeId?: string;
   themeTitle?: string;
+  showGradeClassOnFrame?: boolean; // 띠지 학년·반·번호 표시 여부 (false면 닉네임만 표시)
   studentInfo?: {
     schoolName?: string;
     grade: number;
@@ -71,8 +72,9 @@ export default function CameraCanvasComposerModal({
   onComplete,
   themeId = "culture-1",
   themeTitle = "0원 코스프레",
+  showGradeClassOnFrame = false,
   studentInfo = {
-    schoolName: "OO초등학교",
+    schoolName: "광주한재초등학교",
     grade: 5,
     classNum: 2,
     studentNum: 14,
@@ -271,11 +273,16 @@ export default function CameraCanvasComposerModal({
     setDraggingStickerUid(uid);
   };
 
-  // 터치/마우스 이벤트 처리
+  // 터치/마우스 이벤트 처리 (스티커 드래그 중 화면 스크롤 완전 방지)
   useEffect(() => {
     if (!draggingStickerUid) return;
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
+      // 모바일 제스처 스크롤 방지
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+
       if (!previewContainerRef.current) return;
       const rect = previewContainerRef.current.getBoundingClientRect();
 
@@ -309,16 +316,23 @@ export default function CameraCanvasComposerModal({
       setDraggingStickerUid(null);
     };
 
+    // 스티커 드래그 시 배경 스크롤 일시 잠금
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     window.addEventListener("mousemove", handlePointerMove);
     window.addEventListener("mouseup", handlePointerUp);
     window.addEventListener("touchmove", handlePointerMove, { passive: false });
     window.addEventListener("touchend", handlePointerUp);
+    window.addEventListener("touchcancel", handlePointerUp);
 
     return () => {
+      document.body.style.overflow = originalOverflow;
       window.removeEventListener("mousemove", handlePointerMove);
       window.removeEventListener("mouseup", handlePointerUp);
       window.removeEventListener("touchmove", handlePointerMove);
       window.removeEventListener("touchend", handlePointerUp);
+      window.removeEventListener("touchcancel", handlePointerUp);
     };
   }, [draggingStickerUid]);
 
@@ -352,7 +366,10 @@ export default function CameraCanvasComposerModal({
       // 날짜 포맷 (YYYY.MM.DD HH:mm)
       const now = new Date();
       const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      const authorText = `${studentInfo.grade}학년 ${studentInfo.classNum}반 ${studentInfo.studentNum}번 ${studentInfo.nickname}`;
+      const currentSchoolName = (studentInfo.schoolName && studentInfo.schoolName !== "OO초등학교") ? studentInfo.schoolName : "광주한재초등학교";
+      const authorText = showGradeClassOnFrame
+        ? `${studentInfo.grade}학년 ${studentInfo.classNum}반 ${studentInfo.studentNum}번 ${studentInfo.nickname} 작가님`
+        : `${studentInfo.nickname} 작가님`;
 
       const rType = selectedFrame.renderType;
 
@@ -402,7 +419,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#FFC72C";
         ctx.font = "900 22px sans-serif";
-        ctx.fillText(`🏫 스쿨픽 • ${studentInfo.schoolName}`, 30, ribbonY + 38);
+        ctx.fillText(`🏫 스쿨픽 • ${currentSchoolName}`, 30, ribbonY + 38);
 
         ctx.fillStyle = "#E2E8F0";
         ctx.font = "bold 16px sans-serif";
@@ -468,7 +485,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#94A3B8";
         ctx.font = "14px sans-serif";
-        ctx.fillText(`🏫 ${studentInfo.schoolName} • 보스 레이드 챌린지 • ${dateStr}`, 30, ribbonY + 65);
+        ctx.fillText(`🏫 ${currentSchoolName} • 보스 레이드 챌린지 • ${dateStr}`, 30, ribbonY + 65);
 
         ctx.textAlign = "right";
         ctx.fillStyle = "#38BDF8";
@@ -506,7 +523,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#881337";
         ctx.font = "bold 20px sans-serif";
-        ctx.fillText(`✨ ${studentInfo.schoolName} 베프 사진전`, 30, rY + 36);
+        ctx.fillText(`✨ ${currentSchoolName} 베프 사진전`, 30, rY + 36);
 
         ctx.fillStyle = "#9F1239";
         ctx.font = "14px sans-serif";
@@ -541,7 +558,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#A7F3D0";
         ctx.font = "bold 18px sans-serif";
-        ctx.fillText(`🌱 ${studentInfo.schoolName} 우리 교실을 빛낸 맑은 땀방울`, 30, rY + 35);
+        ctx.fillText(`🌱 ${currentSchoolName} 우리 교실을 빛낸 맑은 땀방울`, 30, rY + 35);
 
         ctx.fillStyle = "#D1FAE5";
         ctx.font = "14px sans-serif";
@@ -582,7 +599,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#FED7AA";
         ctx.font = "bold 18px sans-serif";
-        ctx.fillText(`영양사 선생님 감사합니다! • ${studentInfo.schoolName} 급식실`, 30, rY + 35);
+        ctx.fillText(`영양사 선생님 감사합니다! • ${currentSchoolName} 급식실`, 30, rY + 35);
 
         ctx.fillStyle = "#A8A29E";
         ctx.font = "14px sans-serif";
@@ -612,7 +629,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#1E293B";
         ctx.font = "bold 24px MaruBuri, serif";
-        ctx.fillText(`Memory at ${studentInfo.schoolName} 🌿`, 40, rY + 50);
+        ctx.fillText(`Memory at ${currentSchoolName} 🌿`, 40, rY + 50);
 
         ctx.fillStyle = "#64748B";
         ctx.font = "15px Pretendard, sans-serif";
@@ -640,7 +657,7 @@ export default function CameraCanvasComposerModal({
 
         ctx.fillStyle = "#38BDF8";
         ctx.font = "900 22px sans-serif";
-        ctx.fillText(`🏫 스쿨픽 ARCHIVE • ${studentInfo.schoolName}`, 30, ribbonY + 40);
+        ctx.fillText(`🏫 스쿨픽 ARCHIVE • ${currentSchoolName}`, 30, ribbonY + 40);
 
         ctx.fillStyle = "#E2E8F0";
         ctx.font = "bold 16px sans-serif";
@@ -811,7 +828,7 @@ export default function CameraCanvasComposerModal({
                 </span>
               </h3>
               <p className="text-[10px] text-slate-400 font-bold">
-                {studentInfo.schoolName} • {studentInfo.nickname} 작가님
+                {(studentInfo.schoolName && studentInfo.schoolName !== "OO초등학교") ? studentInfo.schoolName : "광주한재초등학교"} • {studentInfo.nickname} 작가님
               </p>
             </div>
           </div>
@@ -957,15 +974,17 @@ export default function CameraCanvasComposerModal({
                       }}
                       onMouseDown={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         handleDragStart(stk.uid, e.clientX, e.clientY);
                       }}
                       onTouchStart={(e) => {
+                        e.stopPropagation();
                         if (e.touches.length > 0) {
                           handleDragStart(stk.uid, e.touches[0].clientX, e.touches[0].clientY);
                         }
                       }}
-                      className={`absolute cursor-move select-none group transition-shadow ${
-                        isDragging ? "scale-105 z-30" : "z-20 hover:scale-102"
+                      className={`absolute cursor-move select-none group transition-shadow touch-none ${
+                        isDragging ? "scale-105 z-30 ring-2 ring-amber-400" : "z-20 hover:scale-102"
                       }`}
                     >
                       {stk.imageSrc ? (
