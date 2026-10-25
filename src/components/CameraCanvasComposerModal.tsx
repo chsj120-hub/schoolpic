@@ -107,6 +107,16 @@ export default function CameraCanvasComposerModal({
   // 원본 캡처 이미지 (HTMLImageElement 생성용 DataURL) 및 종횡비
   const [rawImageDataUrl, setRawImageDataUrl] = useState<string | null>(null);
   const [rawImageAspect, setRawImageAspect] = useState<number>(4 / 3);
+
+  // [기획서 2장]: 청소 비포&애프터(culture-11) & 도플갱어 찾기(culture-12) 2분할 샷 모드
+  const isBeforeAfterTheme = themeId === "culture-11" || themeTitle?.includes("비포") || themeTitle?.includes("청소");
+  const isDoppelgangerTheme = themeId === "culture-12" || themeTitle?.includes("도플갱어");
+  const isTwoCutTheme = isBeforeAfterTheme || isDoppelgangerTheme;
+
+  const [twoCutStep, setTwoCutStep] = useState<1 | 2>(1); // 1: 1컷(Before/원본), 2: 2컷(After/도플갱어)
+  const [firstCutUrl, setFirstCutUrl] = useState<string | null>(null);
+  const [secondCutUrl, setSecondCutUrl] = useState<string | null>(null);
+
   // 최종 합성된 이미지 DataURL & Blob
   const [composedDataUrl, setComposedDataUrl] = useState<string | null>(null);
   const [composedBlob, setComposedBlob] = useState<Blob | null>(null);
@@ -203,8 +213,30 @@ export default function CameraCanvasComposerModal({
   };
 
   // ============================================================================
-  // 2. 비디오 캡처 또는 앨범 사진 선택
+  // 2. 비디오 캡처 또는 앨범 사진 선택 (2분할 샷 스텝 지원)
   // ============================================================================
+  const processCapturedPhoto = (dataUrl: string) => {
+    if (isTwoCutTheme) {
+      if (twoCutStep === 1) {
+        setFirstCutUrl(dataUrl);
+        setTwoCutStep(2);
+        // 2컷 촬영을 위해 카메라가 켜져 있으면 유지, 꺼져 있으면 재시작
+        if (!isCameraActive) {
+          startCamera();
+        }
+      } else {
+        setSecondCutUrl(dataUrl);
+        setRawImageDataUrl(firstCutUrl || dataUrl); // 렌더링 트리거
+        stopCamera();
+        setViewMode("preview");
+      }
+    } else {
+      setRawImageDataUrl(dataUrl);
+      stopCamera();
+      setViewMode("preview");
+    }
+  };
+
   const captureFromVideo = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
@@ -222,9 +254,7 @@ export default function CameraCanvasComposerModal({
 
     ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
     const dataUrl = tempCanvas.toDataURL("image/jpeg", 0.95);
-    setRawImageDataUrl(dataUrl);
-    stopCamera();
-    setViewMode("preview");
+    processCapturedPhoto(dataUrl);
   };
 
   const handleAlbumSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,9 +264,7 @@ export default function CameraCanvasComposerModal({
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
-      setRawImageDataUrl(dataUrl);
-      stopCamera();
-      setViewMode("preview");
+      processCapturedPhoto(dataUrl);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -337,14 +365,246 @@ export default function CameraCanvasComposerModal({
   }, [draggingStickerUid]);
 
   // ============================================================================
+  // 스티커 합성 렌더러 공통 도우미
+  // ============================================================================
+  const drawPlacedStickersOnCtx = async (ctx: CanvasRenderingContext2D, targetWidth: number, targetHeight: number) => {
+    const loadedImages = await Promise.all(
+      placedStickers.map(async (stk) => {
+        if (!stk.imageSrc) return null;
+        if (stickerImageCache.has(stk.imageSrc)) {
+          return { uid: stk.uid, img: stickerImageCache.get(stk.imageSrc)! };
+        }
+        try {
+          const sImg = new Image();
+          sImg.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            sImg.onload = () => resolve();
+            sImg.onerror = () => reject();
+            sImg.src = stk.imageSrc!;
+          });
+          stickerImageCache.set(stk.imageSrc, sImg);
+          return { uid: stk.uid, img: sImg };
+        } catch {
+          return null;
+        }
+      })
+    );
+    const imgMap = new Map<string, HTMLImageElement>();
+    loadedImages.forEach((item) => {
+      if (item) imgMap.set(item.uid, item.img);
+    });
+
+    placedStickers.forEach((stk) => {
+      const posX = (stk.x / 100) * targetWidth;
+      const posY = (stk.y / 100) * targetHeight;
+
+      ctx.save();
+      ctx.translate(posX, posY);
+
+      if (stk.imageSrc && imgMap.has(stk.uid)) {
+        const stickerImg = imgMap.get(stk.uid)!;
+        const aspect =
+          stickerImg.width && stickerImg.height
+            ? stickerImg.width / stickerImg.height
+            : 1;
+        let drawW = 120;
+        let drawH = 120;
+        if (aspect >= 1) {
+          drawW = Math.min(220, 85 * aspect);
+          drawH = drawW / aspect;
+        } else {
+          drawH = 120;
+          drawW = drawH * aspect;
+        }
+        ctx.drawImage(stickerImg, -drawW / 2, -drawH / 2, drawW, drawH);
+      } else {
+        ctx.font = "900 24px sans-serif";
+        const textMetrics = ctx.measureText(stk.text);
+        const paddingX = 22;
+        const boxWidth = textMetrics.width + paddingX * 2;
+        const boxHeight = 50;
+
+        ctx.fillStyle = stk.bg || "#F59E0B";
+        ctx.beginPath();
+        ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 25);
+        ctx.fill();
+
+        ctx.strokeStyle = stk.border || "#FFFFFF";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.fillStyle = stk.color || "#000000";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(stk.text, 0, 1);
+      }
+
+      ctx.restore();
+    });
+  };
+
+  // ============================================================================
   // 4. Canvas 프레임 & 스티커 실시간 즉석 합성 렌더러
   // ============================================================================
   const renderComposedCanvas = useCallback(() => {
-    if (!rawImageDataUrl || !canvasRef.current) return;
+    if (!canvasRef.current) return;
+    if (!rawImageDataUrl && (!firstCutUrl || !secondCutUrl)) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const currentSchoolName = (studentInfo.schoolName && studentInfo.schoolName !== "OO초등학교") ? studentInfo.schoolName : "광주한재초등학교";
+    const authorText = showGradeClassOnFrame
+      ? `${studentInfo.grade}학년 ${studentInfo.classNum}반 ${studentInfo.studentNum}번 ${studentInfo.nickname} 작가님`
+      : `${studentInfo.nickname} 작가님`;
+
+    // ------------------------------------------------------------------------
+    // [2분할 샷 모드]: 청소 비포&애프터 및 도플갱어 찾기 2장 나란히 자동 합성!
+    // ------------------------------------------------------------------------
+    if (isTwoCutTheme && firstCutUrl && secondCutUrl) {
+      const img1 = new Image();
+      const img2 = new Image();
+      img1.crossOrigin = "anonymous";
+      img2.crossOrigin = "anonymous";
+
+      let loadCounter = 0;
+      const onTwoLoaded = async () => {
+        const targetWidth = 1200;
+        const targetHeight = 840;
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        setRawImageAspect(1200 / 840);
+        const halfW = targetWidth / 2;
+
+        // 1컷(좌측: Before/원본) 렌더링
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, halfW, targetHeight);
+        ctx.clip();
+        const sc1 = Math.max(halfW / img1.width, targetHeight / img1.height);
+        const w1 = img1.width * sc1;
+        const h1 = img1.height * sc1;
+        ctx.drawImage(img1, (halfW - w1) / 2, (targetHeight - h1) / 2, w1, h1);
+        ctx.restore();
+
+        // 2컷(우측: After/도플갱어) 렌더링
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(halfW, 0, halfW, targetHeight);
+        ctx.clip();
+        const sc2 = Math.max(halfW / img2.width, targetHeight / img2.height);
+        const w2 = img2.width * sc2;
+        const h2 = img2.height * sc2;
+        ctx.drawImage(img2, halfW + (halfW - w2) / 2, (targetHeight - h2) / 2, w2, h2);
+        ctx.restore();
+
+        // 중앙 수직 분할선
+        ctx.save();
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 6;
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(halfW, 0);
+        ctx.lineTo(halfW, targetHeight);
+        ctx.stroke();
+        ctx.restore();
+
+        // 중앙 뱃지 (비포애프터는 화살표 ➔, 도플갱어는 VS)
+        ctx.save();
+        ctx.fillStyle = "#FFC72C";
+        ctx.strokeStyle = "#0F172A";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(halfW, targetHeight / 2 - 20, 36, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#0F172A";
+        ctx.font = "900 24px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(isBeforeAfterTheme ? "➔" : "VS", halfW, targetHeight / 2 - 19);
+        ctx.restore();
+
+        // 좌측 라벨 뱃지
+        ctx.save();
+        ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+        ctx.beginPath();
+        ctx.roundRect(24, 24, 210, 48, 14);
+        ctx.fill();
+        ctx.strokeStyle = "#FFC72C";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = "#FFC72C";
+        ctx.font = "900 18px sans-serif";
+        ctx.fillText(isBeforeAfterTheme ? "🧹 BEFORE (청소 전)" : "👤 ORIGINAL (원본)", 38, 54);
+        ctx.restore();
+
+        // 우측 라벨 뱃지
+        ctx.save();
+        ctx.fillStyle = isBeforeAfterTheme ? "rgba(5, 150, 105, 0.92)" : "rgba(124, 58, 237, 0.92)";
+        ctx.beginPath();
+        ctx.roundRect(halfW + 24, 24, 230, 48, 14);
+        ctx.fill();
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "900 18px sans-serif";
+        ctx.fillText(isBeforeAfterTheme ? "✨ AFTER (청소 후)" : "👯 싱크로율 99.9%", halfW + 38, 54);
+        ctx.restore();
+
+        // 하단 띠지
+        const ribbonHeight = 85;
+        const ribbonY = targetHeight - ribbonHeight;
+        ctx.fillStyle = "rgba(15, 23, 42, 0.94)";
+        ctx.fillRect(0, ribbonY, targetWidth, ribbonHeight);
+        ctx.fillStyle = "#FFC72C";
+        ctx.fillRect(0, ribbonY, targetWidth, 4);
+
+        ctx.fillStyle = "#FFC72C";
+        ctx.font = "900 22px sans-serif";
+        ctx.fillText(`🏫 스쿨픽 • ${currentSchoolName}`, 24, ribbonY + 36);
+
+        ctx.fillStyle = "#CBD5E1";
+        ctx.font = "bold 15px sans-serif";
+        ctx.fillText(`테마: ${themeTitle || (isBeforeAfterTheme ? "청소 비포&애프터" : "도플갱어 찾기")} • 2분할 샷 | 촬영: ${dateStr}`, 24, ribbonY + 66);
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#38BDF8";
+        ctx.font = "900 20px sans-serif";
+        ctx.fillText(`작가: ${authorText}`, targetWidth - 24, ribbonY + 50);
+        ctx.textAlign = "left";
+
+        // 스티커 합성 렌더링
+        await drawPlacedStickersOnCtx(ctx, targetWidth, targetHeight);
+
+        // 최종 DataURL 및 Blob 추출
+        const composedUrl = canvas.toDataURL("image/jpeg", 0.92);
+        setComposedDataUrl(composedUrl);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            setComposedBlob(blob);
+            setFileSizeKb(Math.round(blob.size / 1024));
+          }
+        }, "image/jpeg", 0.92);
+      };
+
+      img1.onload = () => {
+        loadCounter++;
+        if (loadCounter === 2) onTwoLoaded();
+      };
+      img2.onload = () => {
+        loadCounter++;
+        if (loadCounter === 2) onTwoLoaded();
+      };
+      img1.src = firstCutUrl;
+      img2.src = secondCutUrl;
+      return;
+    }
 
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -362,14 +622,6 @@ export default function CameraCanvasComposerModal({
 
       // 2. 원본 사진 렌더링
       ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-      // 날짜 포맷 (YYYY.MM.DD HH:mm)
-      const now = new Date();
-      const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      const currentSchoolName = (studentInfo.schoolName && studentInfo.schoolName !== "OO초등학교") ? studentInfo.schoolName : "광주한재초등학교";
-      const authorText = showGradeClassOnFrame
-        ? `${studentInfo.grade}학년 ${studentInfo.classNum}반 ${studentInfo.studentNum}번 ${studentInfo.nickname} 작가님`
-        : `${studentInfo.nickname} 작가님`;
 
       const rType = selectedFrame.renderType;
 
@@ -673,86 +925,7 @@ export default function CameraCanvasComposerModal({
       // ========================================================================
       // 8) 사용자가 배치한 모든 스티커 (실물 이미지 또는 텍스트 배지) Canvas에 각인 렌더링!
       // ========================================================================
-      const loadedImages = await Promise.all(
-        placedStickers.map(async (stk) => {
-          if (!stk.imageSrc) return null;
-          if (stickerImageCache.has(stk.imageSrc)) {
-            return { uid: stk.uid, img: stickerImageCache.get(stk.imageSrc)! };
-          }
-          try {
-            const sImg = new Image();
-            sImg.crossOrigin = "anonymous";
-            await new Promise<void>((resolve, reject) => {
-              sImg.onload = () => resolve();
-              sImg.onerror = () => reject();
-              sImg.src = stk.imageSrc!;
-            });
-            stickerImageCache.set(stk.imageSrc, sImg);
-            return { uid: stk.uid, img: sImg };
-          } catch {
-            return null;
-          }
-        })
-      );
-      const imgMap = new Map<string, HTMLImageElement>();
-      loadedImages.forEach((item) => {
-        if (item) imgMap.set(item.uid, item.img);
-      });
-
-      placedStickers.forEach((stk) => {
-        const posX = (stk.x / 100) * targetWidth;
-        const posY = (stk.y / 100) * targetHeight;
-
-        ctx.save();
-        ctx.translate(posX, posY);
-
-        if (stk.imageSrc && imgMap.has(stk.uid)) {
-          // 실물 투명 이미지 스티커 렌더링 (원본 가로세로 비율 자동 유지)
-          const stickerImg = imgMap.get(stk.uid)!;
-          const aspect =
-            stickerImg.width && stickerImg.height
-              ? stickerImg.width / stickerImg.height
-              : 1;
-          let drawW = 120;
-          let drawH = 120;
-          if (aspect >= 1) {
-            // 가로형 로고 (유튜브, 틱톡 등)
-            drawW = Math.min(220, 85 * aspect);
-            drawH = drawW / aspect;
-          } else {
-            // 세로형 로고
-            drawH = 120;
-            drawW = drawH * aspect;
-          }
-          ctx.drawImage(stickerImg, -drawW / 2, -drawH / 2, drawW, drawH);
-        } else {
-          // 텍스트/이모지 배지 스티커 렌더링
-          ctx.font = "900 24px sans-serif";
-          const textMetrics = ctx.measureText(stk.text);
-          const paddingX = 22;
-          const boxWidth = textMetrics.width + paddingX * 2;
-          const boxHeight = 50;
-
-          // 둥근 사각 스티커 배경
-          ctx.fillStyle = stk.bg || "#F59E0B";
-          ctx.beginPath();
-          ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 25);
-          ctx.fill();
-
-          // 외곽선
-          ctx.strokeStyle = stk.border || "#FFFFFF";
-          ctx.lineWidth = 4;
-          ctx.stroke();
-
-          // 텍스트
-          ctx.fillStyle = stk.color || "#000000";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(stk.text, 0, 1);
-        }
-
-        ctx.restore();
-      });
+      await drawPlacedStickersOnCtx(ctx, targetWidth, targetHeight);
 
       // 3. 최종 DataURL 및 Blob 추출
       const composedUrl = canvas.toDataURL("image/jpeg", 0.92);
@@ -770,15 +943,16 @@ export default function CameraCanvasComposerModal({
       );
     };
 
+    if (!rawImageDataUrl) return;
     img.src = rawImageDataUrl;
-  }, [rawImageDataUrl, selectedFrame, placedStickers, themeTitle, studentInfo]);
+  }, [rawImageDataUrl, selectedFrame, placedStickers, themeTitle, studentInfo, isTwoCutTheme, firstCutUrl, secondCutUrl]);
 
   // 프레임 프리셋 또는 스티커 변경 시 자동 재렌더링
   useEffect(() => {
-    if (viewMode === "preview" && rawImageDataUrl) {
+    if (viewMode === "preview" && (rawImageDataUrl || (isTwoCutTheme && firstCutUrl && secondCutUrl))) {
       renderComposedCanvas();
     }
-  }, [viewMode, rawImageDataUrl, selectedFrame, placedStickers, renderComposedCanvas]);
+  }, [viewMode, rawImageDataUrl, selectedFrame, placedStickers, renderComposedCanvas, isTwoCutTheme, firstCutUrl, secondCutUrl]);
 
   // 합성본 로컬 다운로드 저장
   const handleDownload = () => {
@@ -843,6 +1017,45 @@ export default function CameraCanvasComposerModal({
           </button>
         </div>
 
+        {/* ================= 2분할 샷 스텝 인디케이터 배너 (청소 비포&애프터 및 도플갱어) ================= */}
+        {isTwoCutTheme && (
+          <div className="bg-amber-500/20 border-b border-amber-400/40 px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black">
+              <span className="text-amber-300">✨ 2분할 세트 모드:</span>
+              <span className={`px-2 py-0.5 rounded-lg text-xs font-black transition-all ${
+                twoCutStep === 1
+                  ? "bg-amber-400 text-slate-950 shadow-xs"
+                  : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}>
+                {isBeforeAfterTheme ? "1컷: Before (청소 전)" : "1컷: 원본 대상"}
+                {firstCutUrl && " ✓"}
+              </span>
+              <span className="text-slate-500">➔</span>
+              <span className={`px-2 py-0.5 rounded-lg text-xs font-black transition-all ${
+                twoCutStep === 2
+                  ? "bg-emerald-400 text-slate-950 shadow-xs"
+                  : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}>
+                {isBeforeAfterTheme ? "2컷: After (청소 후)" : "2컷: 도플갱어/닮은꼴"}
+                {secondCutUrl && " ✓"}
+              </span>
+            </div>
+            {twoCutStep === 2 && firstCutUrl && viewMode === "camera" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTwoCutStep(1);
+                  setFirstCutUrl(null);
+                  startCamera();
+                }}
+                className="text-[11px] text-amber-300 underline font-bold cursor-pointer hover:text-white"
+              >
+                1컷 다시 찍기
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ================= MODE 1: 실시간 카메라 뷰파인더 ================= */}
         {viewMode === "camera" && (
           <div className="flex-1 flex flex-col justify-between p-4 space-y-4">
@@ -856,6 +1069,17 @@ export default function CameraCanvasComposerModal({
                 muted
                 className="w-full h-full object-cover"
               />
+
+              {/* 2컷 촬영 시 좌측 상단 1컷 미리보기 썸네일 뱃지 */}
+              {isTwoCutTheme && twoCutStep === 2 && firstCutUrl && (
+                <div className="absolute top-3 left-3 bg-black/80 rounded-2xl p-1 border-2 border-amber-400 shadow-lg flex items-center gap-1.5 backdrop-blur-xs">
+                  <img src={firstCutUrl} alt="1컷 미리보기" className="w-12 h-9 object-cover rounded-xl" />
+                  <div className="pr-1 text-[10px] font-black text-amber-300">
+                    <div>1컷 등록됨 ✓</div>
+                    <div className="text-[9px] text-slate-300 font-medium">이제 2컷을 촬영하세요</div>
+                  </div>
+                </div>
+              )}
 
               {/* 전/후면 카메라 전환 버튼 */}
               {isCameraActive && (
@@ -948,6 +1172,40 @@ export default function CameraCanvasComposerModal({
         {viewMode === "preview" && (
           <div className="flex-1 flex flex-col justify-between p-4 space-y-3.5 overflow-y-auto">
             
+            {/* 2분할 샷 모드 안내 및 재촬영 버튼 */}
+            {isTwoCutTheme && (
+              <div className="w-full bg-slate-800/90 border border-amber-400/50 rounded-2xl p-2.5 flex items-center justify-between text-xs shadow-sm">
+                <div className="flex items-center gap-1.5 text-amber-300 font-black">
+                  <span>✨ 2분할 세트 완성!</span>
+                  <span className="text-[10px] text-slate-300 font-medium hidden sm:inline">
+                    ({isBeforeAfterTheme ? "청소 전/후" : "원본/도플갱어"})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTwoCutStep(1);
+                      setViewMode("camera");
+                    }}
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-black cursor-pointer transition-colors"
+                  >
+                    1컷 재촬영
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTwoCutStep(2);
+                      setViewMode("camera");
+                    }}
+                    className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-black cursor-pointer transition-colors"
+                  >
+                    2컷 재촬영
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 1. 합성 캔버스 및 인터랙티브 스티커 드래그 오버레이 (가로/세로 적응형 컨테이너) */}
             <div className="space-y-1 flex flex-col items-center">
               <div 

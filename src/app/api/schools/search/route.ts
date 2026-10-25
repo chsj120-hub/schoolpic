@@ -83,8 +83,8 @@ export async function GET(request: Request) {
           const regCode = REGION_CODES[matchedRegion]?.code || "SE";
           const generatedCode = `${regCode}${level}-${last4}`;
 
-          // 이미 가입된 학교 예시 데이터 확인
-          const existing = SCHOOL_DATABASE.find((s) => s.name === r.SCHUL_NM);
+          // 이미 가입된 학교 예시 데이터 확인 (실제 교사가 가입되어 있는 학교만 existing으로 판별)
+          const existing = SCHOOL_DATABASE.find((s) => s.name === r.SCHUL_NM && (s.teacherCount ?? 0) > 0);
 
           return {
             id: r.SD_SCHUL_CODE || `sch-${Math.random()}`,
@@ -92,8 +92,8 @@ export async function GET(request: Request) {
             region: matchedRegion,
             address: r.ORG_RDNMA || r.ORG_RDNDA || locationName,
             level: level,
-            code: existing?.code || generatedCode,
-            teacherCount: existing?.teacherCount || 0,
+            code: existing ? existing.code : generatedCode,
+            teacherCount: existing ? existing.teacherCount : 0,
           };
         });
 

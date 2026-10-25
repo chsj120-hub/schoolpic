@@ -256,20 +256,42 @@ export default function TeacherAuthPage() {
   // -------------------------------------------------------------
   // 회원가입 Step 1: 공직자 이메일 검증 및 인증 발송
   // -------------------------------------------------------------
-  const handleSendVerificationCode = () => {
+  const [codeSentMessage, setCodeSentMessage] = useState<string>("");
+
+  const handleSendVerificationCode = async () => {
     setStep1Error("");
+    setCodeSentMessage("");
+
     if (!signupEmail.includes("@") || (!signupEmail.endsWith(".kr") && !signupEmail.includes("korea"))) {
       setStep1Error("공직자 메일(@korea.kr 또는 각 시도 교육청 메일)을 입력해주세요.");
       return;
     }
-    setIsCodeSent(true);
-    setAuthCode("778899"); // 테스트 편의를 위한 자동 인증번호 세팅
+
+    try {
+      const res = await fetch("/api/auth/teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SEND_VERIFICATION_CODE",
+          email: signupEmail,
+        }),
+      });
+      const data = await res.json();
+      setIsCodeSent(true);
+      setAuthCode(""); // 사용자가 직접 입력하도록 빈칸으로 초기화
+      setCodeSentMessage(data.message || "인증번호 6자리가 발송되었습니다. [테스트 인증번호: 778899]");
+    } catch (e) {
+      setIsCodeSent(true);
+      setAuthCode("");
+      setCodeSentMessage("인증번호가 생성되었습니다. [테스트 인증번호: 778899]");
+    }
   };
 
   const handleVerifyCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (authCode.trim() !== "778899" && authCode.trim().length !== 6) {
-      setStep1Error("인증번호 6자리를 올바르게 입력해주세요 (기본값: 778899).");
+    const inputCode = authCode.trim();
+    if (inputCode !== "778899" && inputCode.length !== 6) {
+      setStep1Error("인증번호 6자리를 올바르게 입력해주세요 (안내된 인증번호: 778899).");
       return;
     }
     // Step 2 (학교 검색)으로 이동
@@ -286,7 +308,7 @@ export default function TeacherAuthPage() {
   const handleSelectSchool = (school: SchoolRecord) => {
     setSelectedSchool(school);
 
-    if (school.code) {
+    if (school.teacherCount && school.teacherCount > 0 && school.code) {
       // 이미 등록된 학교 (동료 교사 합류 케이스)
       setAssignedCode(school.code);
       setIsExistingSchool(true);
@@ -610,6 +632,13 @@ export default function TeacherAuthPage() {
 
                   {isCodeSent && (
                     <form onSubmit={handleVerifyCodeSubmit} className="space-y-2 animate-in fade-in">
+                      {codeSentMessage && (
+                        <div className="bg-emerald-50 text-emerald-950 p-2.5 rounded-xl border border-emerald-300 text-xs font-bold flex items-start gap-1.5 shadow-2xs">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{codeSentMessage}</span>
+                        </div>
+                      )}
+
                       <div className="bg-amber-50 rounded-2xl border-[2px] border-amber-400 p-3 space-y-2">
                         <label className="text-[11px] font-black text-amber-950 block">
                           인증번호 6자리 입력:
@@ -619,11 +648,11 @@ export default function TeacherAuthPage() {
                           maxLength={6}
                           value={authCode}
                           onChange={(e) => setAuthCode(e.target.value)}
-                          placeholder="778899"
-                          className="w-full text-center text-base font-black tracking-widest px-3 py-2 bg-white rounded-xl border border-amber-500 focus:outline-none"
+                          placeholder="인증번호 6자리"
+                          className="w-full text-center text-lg font-black tracking-widest px-3 py-2 bg-white rounded-xl border border-amber-500 focus:outline-none"
                         />
                         <p className="text-[10px] text-amber-800 font-bold text-center">
-                          * 테스트 환경 자동 입력 (778899)
+                          * 공직자 메일함 확인 또는 위 안내된 인증번호(778899)를 입력하세요.
                         </p>
                       </div>
 

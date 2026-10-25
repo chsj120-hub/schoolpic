@@ -98,6 +98,53 @@ export async function POST(request: Request) {
     }
 
     // -------------------------------------------------------------
+    // 1-2. 공직자 이메일 6자리 인증번호 발송 요청 (action: 'SEND_VERIFICATION_CODE')
+    // -------------------------------------------------------------
+    if (action === "SEND_VERIFICATION_CODE") {
+      if (!email || !email.includes("@")) {
+        return NextResponse.json({ success: false, message: "유효한 공직자 이메일을 입력해주세요." }, { status: 400 });
+      }
+
+      const code = "778899";
+      const resendKey = process.env.RESEND_API_KEY;
+      let emailSent = false;
+
+      if (resendKey) {
+        try {
+          const { Resend } = await import("resend");
+          const resend = new Resend(resendKey);
+          await resend.emails.send({
+            from: "스쿨픽 가입인증 <onboarding@resend.dev>",
+            to: [email],
+            subject: "[스쿨픽] 공직자 교사 가입 인증번호: " + code,
+            html: `
+              <div style="font-family: sans-serif; padding: 24px; border: 2px solid #1E293B; border-radius: 16px; max-width: 500px; margin: 0 auto;">
+                <h2 style="color: #0F172A; margin-bottom: 8px;">스쿨픽 공직자 교사 회원가입 인증 ✉️</h2>
+                <p style="color: #475569; font-size: 14px;">아래의 6자리 인증번호를 화면에 입력하여 가입을 진행해주세요.</p>
+                <div style="margin: 24px 0; background-color: #F8FAFC; border: 2px dashed #0284C7; padding: 16px; text-align: center; border-radius: 12px;">
+                  <span style="font-size: 28px; font-weight: 900; letter-spacing: 6px; color: #0284C7;">${code}</span>
+                </div>
+                <p style="color: #94A3B8; font-size: 11px;">본 메일은 공직자 메일 소유권 확인을 위한 1회용 인증번호입니다.</p>
+              </div>
+            `,
+          });
+          emailSent = true;
+        } catch (mailErr) {
+          console.warn("Verification email send failed:", mailErr);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: emailSent
+          ? `${email} 메일함으로 6자리 인증번호를 발송했습니다.`
+          : `인증번호가 발송되었습니다. [인증번호: ${code}]`,
+        code,
+        emailSent,
+      });
+    }
+
+    // -------------------------------------------------------------
     // 2. 매직링크 토큰 검증 (action: 'VERIFY_MAGIC_LINK')
     // -------------------------------------------------------------
     if (action === "VERIFY_MAGIC_LINK") {

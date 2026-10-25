@@ -57,8 +57,13 @@ export default function StudentChallengePage() {
       .catch((err) => console.warn("Challenge fetch error:", err));
   }, [params?.id]);
 
-  // 출품작 목록
-  const [submissions, setSubmissions] = useState<PhotoSubmission[]>(SAMPLE_SUBMISSIONS);
+  // 출품작 목록: challenge-1 샘플일 때만 기본 샘플 로드, 신규 개설 사진전은 초기 빈 갤러리([]) 격리 보장
+  const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
+    if (params?.id === "challenge-1") {
+      return SAMPLE_SUBMISSIONS.filter((s) => s.challengeId === "challenge-1");
+    }
+    return [];
+  });
 
   // Supabase 실시간 출품작 동기화
   useEffect(() => {
@@ -66,13 +71,17 @@ export default function StudentChallengePage() {
       try {
         const res = await fetch(`/api/submissions?exhibitionId=${params?.id || ""}`);
         const data = await res.json();
-        if (data.success && Array.isArray(data.submissions) && data.submissions.length > 0) {
-          // DB에서 가져온 최신 작품들을 기존 샘플과 병합 (DB 작품 최상단 배치)
-          setSubmissions((prev) => {
-            const dbIds = new Set(data.submissions.map((s: any) => s.id));
-            const existingFiltered = prev.filter((s) => !dbIds.has(s.id));
-            return [...data.submissions, ...existingFiltered];
-          });
+        if (data.success && Array.isArray(data.submissions)) {
+          if (data.submissions.length > 0) {
+            // DB에서 가져온 해당 사진전 전용 출품작만 표시
+            const exhibitionSubmissions = data.submissions.filter(
+              (s: any) => !s.challengeId || s.challengeId === (params?.id || "")
+            );
+            setSubmissions(exhibitionSubmissions);
+          } else if (params?.id !== "challenge-1") {
+            // 신규 개설된 사진전은 출품작이 0건이면 빈 배열 유지
+            setSubmissions([]);
+          }
         }
       } catch (e) {
         console.warn("Could not load submissions from server, fallback to local:", e);
@@ -99,12 +108,21 @@ export default function StudentChallengePage() {
     );
   };
 
-  // 학생 프로필 (규칙: 실명 수집 절대 금지! 학년/반/번호/닉네임만 사용)
+  // 학생 프로필 (규칙: 실명 수집 절대 금지! 학년/반/번호/닉네임/핀번호만 사용)
   const [studentGrade, setStudentGrade] = useState<number>(5);
   const [studentClass, setStudentClass] = useState<number>(2);
   const [studentNumber, setStudentNumber] = useState<number>(14);
   const [studentNickname, setStudentNickname] = useState<string>("5반 날다람쥐");
+  const [studentPin, setStudentPin] = useState<string>("1234");
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState<boolean>(false);
   const [isProfileEditing, setIsProfileEditing] = useState<boolean>(false);
+
+  // 학생 온보딩/수정 임시 입력 상태
+  const [tempGrade, setTempGrade] = useState<number>(5);
+  const [tempClass, setTempClass] = useState<number>(2);
+  const [tempNumber, setTempNumber] = useState<number>(14);
+  const [tempNickname, setTempNickname] = useState<string>("5반 날다람쥐");
+  const [tempPin, setTempPin] = useState<string>("1234");
 
   // 학생 가이드 아코디언 토글 (기본 열림)
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(true);
@@ -159,23 +177,70 @@ export default function StudentChallengePage() {
   const isSubmittingPeriod = isSubmittingActive;
   const isVotingPeriod = isVotingActive;
 
-  // 로컬 스토리지에서 학생 세션 불러오기
+  // 로컬 스토리지에서 학생 세션 불러오기 (없으면 온보딩 모달 자동 오픈)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("schoolpick_student");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed.grade) setStudentGrade(parsed.grade);
-          if (parsed.classNum) setStudentClass(parsed.classNum);
-          if (parsed.studentNum) setStudentNumber(parsed.studentNum);
-          if (parsed.nickname) setStudentNickname(parsed.nickname);
+          if (parsed.grade) {
+            setStudentGrade(Number(parsed.grade));
+            setTempGrade(Number(parsed.grade));
+          }
+          if (parsed.classNum) {
+            setStudentClass(Number(parsed.classNum));
+            setTempClass(Number(parsed.classNum));
+          }
+          if (parsed.studentNum) {
+            setStudentNumber(Number(parsed.studentNum));
+            setTempNumber(Number(parsed.studentNum));
+          }
+          if (parsed.nickname) {
+            setStudentNickname(parsed.nickname);
+            setTempNickname(parsed.nickname);
+          }
+          if (parsed.pin) {
+            setStudentPin(parsed.pin);
+            setTempPin(parsed.pin);
+          }
         } catch (e) {
           console.error("Failed to parse student session", e);
         }
+      } else {
+        // 첫 진입 학생 온보딩 모달 오픈
+        setIsOnboardingModalOpen(true);
       }
     }
   }, []);
+
+  // 학생 정보 저장 핸들러
+  const handleSaveStudentSession = (g: number, c: number, n: number, nick: string, pin: string) => {
+    const validG = Math.max(1, Math.min(6, g || 1));
+    const validC = Math.max(1, Math.min(30, c || 1));
+    const validN = Math.max(1, Math.min(50, n || 1));
+    const validNick = (nick || "").trim() || `${validG}-${validC} 작가`;
+    const validPin = (pin || "").trim().slice(0, 4) || "1234";
+
+    setStudentGrade(validG);
+    setStudentClass(validC);
+    setStudentNumber(validN);
+    setStudentNickname(validNick);
+    setStudentPin(validPin);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "schoolpick_student",
+        JSON.stringify({
+          grade: validG,
+          classNum: validC,
+          studentNum: validN,
+          nickname: validNick,
+          pin: validPin,
+        })
+      );
+    }
+  };
 
   // 투표 핸들러
   const handleVote = async (submissionId: string) => {
@@ -257,9 +322,13 @@ export default function StudentChallengePage() {
   const isBossRaid = challenge.title.includes("보스 레이드");
   const bossHp = Math.max(0, 100 - (submissions.length * 5));
 
-  // 1인 1작품 제한: 내가 이미 제출한 작품 찾기
+  // 1인 1작품 제한: 내가 이미 제출한 작품 찾기 (해당 사진전 challenge.id 내에서만 엄격 격리!)
   const myExistingSubmission = submissions.find(
-    (s) => s.studentGrade === studentGrade && s.studentClass === studentClass && s.studentNumber === studentNumber
+    (s) =>
+      (s.challengeId === challenge.id || !s.challengeId) &&
+      s.studentGrade === studentGrade &&
+      s.studentClass === studentClass &&
+      s.studentNumber === studentNumber
   );
 
   // 출품 모달 열기 핸들러 (이미 제출한 경우 확인창 띄움)
@@ -273,7 +342,7 @@ export default function StudentChallengePage() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex justify-center items-stretch antialiased selection:bg-amber-200">
-      {/* 학생 및 학부모 전용 모바일 셸 컨테이너 (최대 480px, 앱 프레임) */}
+      {/* 학생 전용 모바일 셸 컨테이너 (최대 480px, 앱 프레임) */}
       <div className="w-full max-w-[480px] min-h-screen bg-white shadow-2xl relative flex flex-col mx-auto overflow-x-hidden border-x border-slate-200/60 pb-24">
         
         {/* 1. 모바일 앱 상단 헤더 */}
@@ -295,7 +364,7 @@ export default function StudentChallengePage() {
                   className="cursor-pointer group flex items-center gap-1 hover:opacity-90 transition-opacity"
                   title="다른 사진전으로 전환하기"
                 >
-                  <p className="text-[11px] font-black text-amber-950 -mt-0.5 truncate max-w-[155px] group-hover:underline">
+                  <p className="text-[11px] font-black text-amber-950 -mt-0.5 truncate max-w-[170px] group-hover:underline">
                     {challenge.title}
                   </p>
                   <span className="text-[9px] bg-white/90 text-amber-900 font-black px-1.5 py-0.2 rounded-md shrink-0 border border-amber-500/40 shadow-2xs">
@@ -305,25 +374,13 @@ export default function StudentChallengePage() {
               </div>
             </div>
 
-            {/* 상단 네비게이션: 전국 교류관 & 학부모관 & 교사 화면 */}
+            {/* 상단 네비게이션: 학생 화면에서는 학부모관과 선생님 버튼 제거, 전국 교류관만 유지 */}
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => router.push("/parents")}
-                className="text-[11px] font-extrabold text-rose-800 bg-rose-100 hover:bg-rose-200 px-2 py-1.5 rounded-xl border border-rose-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-              >
-                <span>💖</span> 학부모관
-              </button>
-              <button
                 onClick={() => router.push("/national")}
-                className="text-[11px] font-extrabold text-sky-900 bg-sky-100 hover:bg-sky-200 px-2 py-1.5 rounded-xl border border-sky-300 transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                className="text-[11px] font-black text-sky-950 bg-sky-100 hover:bg-sky-200 px-2.5 py-1.5 rounded-xl border-2 border-sky-300 transition-colors cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
               >
-                <span>🌐</span> 전국
-              </button>
-              <button
-                onClick={() => router.push("/teacher")}
-                className="text-[11px] font-bold text-amber-900 bg-amber-300/80 hover:bg-white px-2 py-1.5 rounded-xl border border-amber-500/40 transition-colors cursor-pointer"
-              >
-                선생님
+                <span>🌐</span> 전국 교류관
               </button>
             </div>
           </div>
@@ -331,8 +388,16 @@ export default function StudentChallengePage() {
           {/* 학생 닉네임 프로필 바 */}
           <div className="mt-2.5 bg-amber-500/30 rounded-2xl p-2 px-3 flex items-center justify-between text-xs text-amber-950 font-bold border border-amber-500/40">
             <div
-              onClick={() => setIsProfileEditing(true)}
+              onClick={() => {
+                setTempGrade(studentGrade);
+                setTempClass(studentClass);
+                setTempNumber(studentNumber);
+                setTempNickname(studentNickname);
+                setTempPin(studentPin);
+                setIsProfileEditing(true);
+              }}
               className="flex items-center gap-1.5 truncate cursor-pointer hover:opacity-80"
+              title="학생 정보 변경 및 PIN 확인"
             >
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="truncate">
@@ -347,52 +412,173 @@ export default function StudentChallengePage() {
           </div>
         </header>
 
-        {/* 닉네임 수정 팝업 */}
+        {/* 첫 방문 학생 온보딩 모달 (학번, 닉네임, 안심 핀번호 등록) */}
+        {isOnboardingModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-2xl mx-auto border-2 border-amber-300">
+                  🎒
+                </div>
+                <h4 className="font-black text-slate-900 text-base">학생 본인 확인 & 작가 등록</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  초상권과 개인정보 안심 원칙에 따라 <b>실명 없이 학년, 반, 번호, 작가 닉네임, 안심 핀번호</b>만 사용합니다!
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <div>
+                  <label className="text-[11px] font-black text-slate-700 block mb-1">학년 / 반 / 번호</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={6}
+                        placeholder="학년"
+                        value={tempGrade}
+                        onChange={(e) => setTempGrade(Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 text-center block mt-0.5">학년</span>
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        placeholder="반"
+                        value={tempClass}
+                        onChange={(e) => setTempClass(Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 text-center block mt-0.5">반</span>
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        placeholder="번호"
+                        value={tempNumber}
+                        onChange={(e) => setTempNumber(Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-xl border-2 border-slate-200 text-xs text-center font-black focus:border-amber-400 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 text-center block mt-0.5">번호</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-black text-slate-700 block mb-1">작가 닉네임 (최대 10자)</label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    placeholder="예: 5반 날다람쥐, 포토장인"
+                    value={tempNickname}
+                    onChange={(e) => setTempNickname(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-xs font-black focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-black text-slate-700">안심 핀번호 (숫자 4자리)</label>
+                    <span className="text-[10px] text-amber-600 font-bold">*학부모 동의 연계용</span>
+                  </div>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    placeholder="4자리 숫자 (예: 1234)"
+                    value={tempPin}
+                    onChange={(e) => setTempPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-center tracking-widest text-sm font-black focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveStudentSession(tempGrade, tempClass, tempNumber, tempNickname, tempPin);
+                  setIsOnboardingModalOpen(false);
+                }}
+                className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-sm border-2 border-amber-500 shadow-arcade-amber cursor-pointer active:scale-95 transition-all mt-2"
+              >
+                스쿨픽 사진전 시작하기 🚀
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 학생 프로필 및 핀번호 수정 팝업 */}
         {isProfileEditing && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
             <div className="bg-white w-full max-w-xs rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3">
               <div className="flex items-center justify-between border-b pb-2">
                 <h4 className="font-black text-slate-900 text-sm">내 학생 정보 수정</h4>
-                <button onClick={() => setIsProfileEditing(false)} className="text-slate-400 font-bold">✕</button>
+                <button onClick={() => setIsProfileEditing(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
               </div>
               <p className="text-[11px] text-slate-500 font-medium">
-                개인정보 보호를 위해 실명이 아닌 <b>학년, 반, 번호, 작가 닉네임</b>만 사용합니다.
+                개인정보 보호를 위해 실명이 아닌 <b>학년, 반, 번호, 작가 닉네임, 안심 핀번호</b>만 사용합니다.
               </p>
               <div className="grid grid-cols-3 gap-1.5">
                 <input
                   type="number"
+                  min={1}
+                  max={6}
                   placeholder="학년"
-                  value={studentGrade}
-                  onChange={(e) => setStudentGrade(Number(e.target.value))}
-                  className="px-2 py-1.5 rounded-xl border border-slate-300 text-xs text-center font-bold"
+                  value={tempGrade}
+                  onChange={(e) => setTempGrade(Number(e.target.value))}
+                  className="px-2 py-1.5 rounded-xl border-2 border-slate-200 text-xs text-center font-bold"
                 />
                 <input
                   type="number"
+                  min={1}
+                  max={30}
                   placeholder="반"
-                  value={studentClass}
-                  onChange={(e) => setStudentClass(Number(e.target.value))}
-                  className="px-2 py-1.5 rounded-xl border border-slate-300 text-xs text-center font-bold"
+                  value={tempClass}
+                  onChange={(e) => setTempClass(Number(e.target.value))}
+                  className="px-2 py-1.5 rounded-xl border-2 border-slate-200 text-xs text-center font-bold"
                 />
                 <input
                   type="number"
+                  min={1}
+                  max={50}
                   placeholder="번호"
-                  value={studentNumber}
-                  onChange={(e) => setStudentNumber(Number(e.target.value))}
-                  className="px-2 py-1.5 rounded-xl border border-slate-300 text-xs text-center font-bold"
+                  value={tempNumber}
+                  onChange={(e) => setTempNumber(Number(e.target.value))}
+                  className="px-2 py-1.5 rounded-xl border-2 border-slate-200 text-xs text-center font-bold"
                 />
               </div>
               <input
                 type="text"
                 placeholder="멋진 닉네임 입력"
-                value={studentNickname}
-                onChange={(e) => setStudentNickname(e.target.value)}
+                maxLength={10}
+                value={tempNickname}
+                onChange={(e) => setTempNickname(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-xs font-bold focus:border-amber-400 focus:outline-none"
               />
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">안심 핀번호 (4자리)</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  placeholder="핀번호 (4자리)"
+                  value={tempPin}
+                  onChange={(e) => setTempPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                  className="w-full px-3 py-1.5 rounded-xl border-2 border-slate-200 text-center tracking-widest text-xs font-bold focus:border-amber-400 focus:outline-none"
+                />
+              </div>
               <button
-                onClick={() => setIsProfileEditing(false)}
-                className="w-full py-2 rounded-xl bg-amber-400 text-amber-950 font-black text-xs border border-amber-500 cursor-pointer"
+                type="button"
+                onClick={() => {
+                  handleSaveStudentSession(tempGrade, tempClass, tempNumber, tempNickname, tempPin);
+                  setIsProfileEditing(false);
+                }}
+                className="w-full py-2.5 rounded-xl bg-amber-400 text-amber-950 font-black text-xs border border-amber-500 cursor-pointer active:scale-95"
               >
-                저장 완료
+                수정 완료
               </button>
             </div>
           </div>
@@ -845,6 +1031,19 @@ export default function StudentChallengePage() {
                           </div>
                         )}
 
+                        {/* 2분할 샷 테마 뱃지 (청소 비포&애프터 culture-11, 도플갱어 culture-12) */}
+                        {(challenge.themeId === "culture-11" ||
+                          challenge.themeId === "culture-12" ||
+                          item.selectedFrame?.includes("비포") ||
+                          item.selectedFrame?.includes("도플갱어")) && (
+                          <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg border border-slate-900 shadow-xs flex items-center gap-1">
+                            <span>✨</span>
+                            <span>
+                              {challenge.themeId === "culture-11" ? "Before&After 2분할" : "도플갱어 2분할"}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded-lg">
                           {challenge.showGradeClassOnFrame
                             ? `${item.studentGrade}학년 ${item.studentClass}반 ${item.studentNumber}번 ${item.nickname}`
@@ -1063,6 +1262,15 @@ export default function StudentChallengePage() {
                 {lightboxPhoto.selectedFrame && (
                   <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-md">
                     {lightboxPhoto.selectedFrame}
+                  </span>
+                )}
+                {(challenge.themeId === "culture-11" ||
+                  challenge.themeId === "culture-12" ||
+                  lightboxPhoto.selectedFrame?.includes("비포") ||
+                  lightboxPhoto.selectedFrame?.includes("도플갱어")) && (
+                  <span className="bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <span>✨</span>
+                    <span>{challenge.themeId === "culture-11" ? "Before & After 2분할" : "도플갱어 2분할"}</span>
                   </span>
                 )}
               </div>
