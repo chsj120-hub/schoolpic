@@ -14,7 +14,6 @@ import TeacherPresentationModal from "@/components/TeacherPresentationModal";
 import { TeacherUserGuideModal } from "@/components/TeacherUserGuideModal";
 import { Footer } from "@/components/Footer";
 import { downloadSubmissionsZip } from "@/lib/zipBackupGenerator";
-import { generateHwpxDraft } from "@/lib/hwpxGenerator";
 import { DraftModal } from "@/components/DraftModal";
 import {
   School,
