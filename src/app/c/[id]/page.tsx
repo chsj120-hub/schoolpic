@@ -799,7 +799,12 @@ export default function StudentChallengePage() {
                 <span>전교생 출품작 투표 갤러리</span>
               </div>
               <span className="text-[11px] font-bold text-slate-400">
-                1인 1일 3표 (투표 진행 중)
+                {challenge.voteLimitType === "ONE_1"
+                  ? "1인 1표 (신중형)"
+                  : challenge.voteLimitType === "TOTAL_3"
+                  ? "기간 내 총 3표 (선택형)"
+                  : "1인 1일 3표 (참여형)"}{" "}
+                (투표 진행 중)
               </span>
             </div>
 
