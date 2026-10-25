@@ -112,17 +112,28 @@ export default function StudentChallengePage() {
   const [studentGrade, setStudentGrade] = useState<number>(5);
   const [studentClass, setStudentClass] = useState<number>(2);
   const [studentNumber, setStudentNumber] = useState<number>(14);
-  const [studentNickname, setStudentNickname] = useState<string>("5반 날다람쥐");
-  const [studentPin, setStudentPin] = useState<string>("1234");
+  const [studentNickname, setStudentNickname] = useState<string>("5학년 2반 14번");
+  const [studentPin, setStudentPin] = useState<string>("0000"); // 기본 0000 설정 (출품/변경 시 커스텀 핀 설정)
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState<boolean>(false);
   const [isProfileEditing, setIsProfileEditing] = useState<boolean>(false);
+
+  // 학번 변경 시 핀번호 확인 모달 상태
+  const [isProfilePinModalOpen, setIsProfilePinModalOpen] = useState<boolean>(false);
+  const [profilePinInput, setProfilePinInput] = useState<string>("");
+  const [profilePinError, setProfilePinError] = useState<string>("");
+
+  // 투표 취소/변경 시 핀번호 확인 모달 상태
+  const [isUnvotePinModalOpen, setIsUnvotePinModalOpen] = useState<boolean>(false);
+  const [pendingUnvoteSubmissionId, setPendingUnvoteSubmissionId] = useState<string | null>(null);
+  const [unvotePinInput, setUnvotePinInput] = useState<string>("");
+  const [unvotePinError, setUnvotePinError] = useState<string>("");
 
   // 학생 온보딩/수정 임시 입력 상태
   const [tempGrade, setTempGrade] = useState<number>(5);
   const [tempClass, setTempClass] = useState<number>(2);
   const [tempNumber, setTempNumber] = useState<number>(14);
-  const [tempNickname, setTempNickname] = useState<string>("5반 날다람쥐");
-  const [tempPin, setTempPin] = useState<string>("1234");
+  const [tempNickname, setTempNickname] = useState<string>("5학년 2반 14번");
+  const [tempPin, setTempPin] = useState<string>("0000");
 
   // 학생 가이드 아코디언 토글 (기본 열림)
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(true);
@@ -219,8 +230,8 @@ export default function StudentChallengePage() {
     const validG = Math.max(1, Math.min(6, g || 1));
     const validC = Math.max(1, Math.min(30, c || 1));
     const validN = Math.max(1, Math.min(50, n || 1));
-    const validNick = (nick || "").trim() || `${validG}-${validC} 작가`;
-    const validPin = (pin || "").trim().slice(0, 4) || "1234";
+    const validNick = (nick || "").trim() || `${validG}학년 ${validC}반 ${validN}번`;
+    const validPin = (pin || "").trim().slice(0, 4) || "0000";
 
     setStudentGrade(validG);
     setStudentClass(validC);
@@ -242,42 +253,55 @@ export default function StudentChallengePage() {
     }
   };
 
-  // 투표 핸들러
+  // 실제 투표 취소 실행 함수
+  const executeUnvote = async (submissionId: string) => {
+    setVotedMap((prev) => ({ ...prev, [submissionId]: false }));
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === submissionId
+          ? {
+              ...s,
+              studentVotes: Math.max(0, (s.studentVotes || 0) - 1),
+              votes: Math.max(0, s.votes - 1),
+            }
+          : s
+      )
+    );
+    setRemainingVotes((prev) => Math.min(maxVotes, prev + 1));
+
+    try {
+      await fetch("/api/votes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submissionId,
+          voterType: "STUDENT",
+          voterFingerprint: `student_${studentGrade}_${studentClass}_${studentNumber}`,
+          studentPin,
+          action: "UNVOTE",
+        }),
+      });
+    } catch (err) {
+      console.warn("Vote sync error:", err);
+    }
+  };
+
+  // 투표 핸들러 (첫 투표는 간편 원터치 / 투표 취소·변경 시 핀번호 확인)
   const handleVote = async (submissionId: string) => {
     const isCurrentlyVoted = !!votedMap[submissionId];
     if (isCurrentlyVoted) {
-      // 투표 취소
-      setVotedMap((prev) => ({ ...prev, [submissionId]: false }));
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === submissionId
-            ? {
-                ...s,
-                studentVotes: Math.max(0, (s.studentVotes || 0) - 1),
-                votes: Math.max(0, s.votes - 1),
-              }
-            : s
-        )
-      );
-      setRemainingVotes((prev) => Math.min(maxVotes, prev + 1));
-
-      try {
-        await fetch("/api/votes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            submissionId,
-            voterType: "STUDENT",
-            voterFingerprint: `student_${studentGrade}_${studentClass}_${studentNumber}`,
-            studentPin,
-            action: "UNVOTE",
-          }),
-        });
-      } catch (err) {
-        console.warn("Vote sync error:", err);
+      // 투표 취소 시: 핀번호가 기본 0000이 아니고 커스텀 설정된 경우 본인 확인 팝업
+      if (studentPin && studentPin !== "0000") {
+        setPendingUnvoteSubmissionId(submissionId);
+        setUnvotePinInput("");
+        setUnvotePinError("");
+        setIsUnvotePinModalOpen(true);
+        return;
       }
+      // 기본 0000인 상태는 즉시 취소 가능
+      await executeUnvote(submissionId);
     } else {
-      // 투표하기
+      // 투표하기 (초기 투표는 핀번호 없이 원터치로 간편하게!)
       if (remainingVotes <= 0) {
         if (challenge.voteLimitType === "ONE_1") {
           alert("1인 1표 투표권을 이미 행사하셨습니다! 신중한 투표 감사합니다 🗳️");
@@ -447,12 +471,19 @@ export default function StudentChallengePage() {
           <div className="mt-2.5 bg-amber-500/30 rounded-2xl p-2 px-3 flex items-center justify-between text-xs text-amber-950 font-bold border border-amber-500/40">
             <div
               onClick={() => {
-                setTempGrade(studentGrade);
-                setTempClass(studentClass);
-                setTempNumber(studentNumber);
-                setTempNickname(studentNickname);
-                setTempPin(studentPin);
-                setIsProfileEditing(true);
+                // 커스텀 핀번호(0000이 아님)가 설정되어 있으면 학년/반/번호 변경 전 핀번호 확인
+                if (studentPin && studentPin !== "0000") {
+                  setProfilePinInput("");
+                  setProfilePinError("");
+                  setIsProfilePinModalOpen(true);
+                } else {
+                  setTempGrade(studentGrade);
+                  setTempClass(studentClass);
+                  setTempNumber(studentNumber);
+                  setTempNickname(studentNickname);
+                  setTempPin(studentPin || "0000");
+                  setIsProfileEditing(true);
+                }
               }}
               className="flex items-center gap-1.5 truncate cursor-pointer hover:opacity-80"
               title="학생 정보 변경 및 PIN 확인"
@@ -754,6 +785,160 @@ export default function StudentChallengePage() {
               <p className="text-[9px] text-slate-400 text-center">
                 * 핀번호를 잊어버린 경우 선생님께 초기화를 요청하세요.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* 학년/반/번호 변경 전 본인 확인 안심 핀번호 모달 */}
+        {isProfilePinModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white w-full max-w-xs rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
+              <div className="text-center space-y-1">
+                <div className="w-11 h-11 bg-amber-100 rounded-2xl flex items-center justify-center text-xl mx-auto border-2 border-amber-300">
+                  🔐
+                </div>
+                <h4 className="font-black text-slate-900 text-sm">학생 정보(학번) 변경 본인 확인</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  현재 학생(<b>{studentGrade}학년 {studentClass}반 {studentNumber}번</b>)의<br />
+                  설정된 <b>안심 핀번호(4자리)</b>를 입력해주세요.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <input
+                  type="password"
+                  maxLength={4}
+                  autoFocus
+                  placeholder="핀번호 4자리"
+                  value={profilePinInput}
+                  onChange={(e) => {
+                    setProfilePinInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 4));
+                    setProfilePinError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (profilePinInput.trim() !== studentPin) {
+                        setProfilePinError("안심 핀번호가 일치하지 않습니다.");
+                      } else {
+                        setIsProfilePinModalOpen(false);
+                        setTempGrade(studentGrade);
+                        setTempClass(studentClass);
+                        setTempNumber(studentNumber);
+                        setTempNickname(studentNickname);
+                        setTempPin(studentPin);
+                        setIsProfileEditing(true);
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-center tracking-widest text-base font-black focus:border-amber-400 focus:outline-none"
+                />
+                {profilePinError && (
+                  <p className="text-[10px] text-rose-600 font-bold text-center">
+                    ⚠️ {profilePinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsProfilePinModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (profilePinInput.trim() !== studentPin) {
+                      setProfilePinError("안심 핀번호가 일치하지 않습니다.");
+                    } else {
+                      setIsProfilePinModalOpen(false);
+                      setTempGrade(studentGrade);
+                      setTempClass(studentClass);
+                      setTempNumber(studentNumber);
+                      setTempNickname(studentNickname);
+                      setTempPin(studentPin);
+                      setIsProfileEditing(true);
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs border border-amber-500 shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  확인 및 수정
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 투표 취소/변경 시 본인 확인 안심 핀번호 모달 */}
+        {isUnvotePinModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white w-full max-w-xs rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3.5">
+              <div className="text-center space-y-1">
+                <div className="w-11 h-11 bg-rose-100 rounded-2xl flex items-center justify-center text-xl mx-auto border-2 border-rose-300">
+                  🗳️
+                </div>
+                <h4 className="font-black text-slate-900 text-sm">투표 취소 및 변경 확인</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  남이 내 투표를 몰래 취소하지 못하도록 보호합니다.<br />
+                  설정된 <b>안심 핀번호(4자리)</b>를 입력해주세요.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <input
+                  type="password"
+                  maxLength={4}
+                  autoFocus
+                  placeholder="핀번호 4자리"
+                  value={unvotePinInput}
+                  onChange={(e) => {
+                    setUnvotePinInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 4));
+                    setUnvotePinError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (unvotePinInput.trim() !== studentPin) {
+                        setUnvotePinError("안심 핀번호가 일치하지 않습니다.");
+                      } else if (pendingUnvoteSubmissionId) {
+                        setIsUnvotePinModalOpen(false);
+                        executeUnvote(pendingUnvoteSubmissionId);
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-center tracking-widest text-base font-black focus:border-amber-400 focus:outline-none"
+                />
+                {unvotePinError && (
+                  <p className="text-[10px] text-rose-600 font-bold text-center">
+                    ⚠️ {unvotePinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsUnvotePinModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (unvotePinInput.trim() !== studentPin) {
+                      setUnvotePinError("안심 핀번호가 일치하지 않습니다.");
+                    } else if (pendingUnvoteSubmissionId) {
+                      setIsUnvotePinModalOpen(false);
+                      executeUnvote(pendingUnvoteSubmissionId);
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs border border-rose-600 shadow-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  투표 취소 확인
+                </button>
+              </div>
             </div>
           </div>
         )}
