@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CULTURE_THEMES, SUBJECT_THEMES } from "@/lib/constants";
 import { Challenge, ThemeMode, ThemeTemplate } from "@/types";
-import { generateHwpxDraft } from "@/lib/hwpxGenerator";
+import { DraftModal } from "@/components/DraftModal";
 import { 
   Sparkles, 
   BookOpen, 
@@ -32,6 +32,35 @@ interface ThemeAndOptionWizardModalProps {
   onClose: () => void;
   onCreate: (newChallenge: Challenge) => void;
   onOpenFeedback: () => void;
+  schoolName?: string;
+  teacherName?: string;
+}
+
+// 오늘 날짜 기준 기본 일정 자동 계산 (접수: 오늘~7일후, 투표: 8일후~11일후)
+function getTodayDefaultDates() {
+  const now = new Date();
+  const format = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const subStart = new Date(now);
+  const subEnd = new Date(now);
+  subEnd.setDate(now.getDate() + 7);
+
+  const voteStart = new Date(now);
+  voteStart.setDate(now.getDate() + 8);
+  const voteEnd = new Date(now);
+  voteEnd.setDate(now.getDate() + 11);
+
+  return {
+    subStart: format(subStart),
+    subEnd: format(subEnd),
+    voteStart: format(voteStart),
+    voteEnd: format(voteEnd),
+  };
 }
 
 export default function ThemeAndOptionWizardModal({
@@ -39,6 +68,8 @@ export default function ThemeAndOptionWizardModal({
   onClose,
   onCreate,
   onOpenFeedback,
+  schoolName = "우리초등학교",
+  teacherName = "선생님",
 }: ThemeAndOptionWizardModalProps) {
   // step 1: 테마 선택 & 교사용 상세 설명, step 2: 행정 옵션 설정
   const [step, setStep] = useState<1 | 2>(1);
@@ -54,18 +85,31 @@ export default function ThemeAndOptionWizardModal({
   const [enableTeacherVote, setEnableTeacherVote] = useState(true);
   const [enableParentVote, setEnableParentVote] = useState(false);
   
-  // 날짜/시간 선택 상태 (요청: 날짜와 시간을 직접 선택할 수 있도록 구현)
-  const [submissionStartDate, setSubmissionStartDate] = useState("2026-11-02");
+  // 날짜/시간 선택 상태 (기본값: 오늘 날짜 기준 자동 최신화)
+  const initialDates = getTodayDefaultDates();
+  const [submissionStartDate, setSubmissionStartDate] = useState(initialDates.subStart);
   const [submissionStartTime, setSubmissionStartTime] = useState("09:00");
-  const [submissionEndDate, setSubmissionEndDate] = useState("2026-11-06");
+  const [submissionEndDate, setSubmissionEndDate] = useState(initialDates.subEnd);
   const [submissionEndTime, setSubmissionEndTime] = useState("16:00");
 
-  const [votingStartDate, setVotingStartDate] = useState("2026-11-09");
+  const [votingStartDate, setVotingStartDate] = useState(initialDates.voteStart);
   const [votingStartTime, setVotingStartTime] = useState("09:00");
-  const [votingEndDate, setVotingEndDate] = useState("2026-11-11");
+  const [votingEndDate, setVotingEndDate] = useState(initialDates.voteEnd);
   const [votingEndTime, setVotingEndTime] = useState("17:00");
 
   const [purgeOption, setPurgeOption] = useState("결과 발표 종료 [ 7일 후 ]");
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+
+  // 모달이 열릴 때마다 접수 및 투표 기간을 오늘 날짜 기준으로 최신화
+  useEffect(() => {
+    if (isOpen) {
+      const dates = getTodayDefaultDates();
+      setSubmissionStartDate(dates.subStart);
+      setSubmissionEndDate(dates.subEnd);
+      setVotingStartDate(dates.voteStart);
+      setVotingEndDate(dates.voteEnd);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -101,7 +145,7 @@ export default function ThemeAndOptionWizardModal({
       teacherTips: selectedTheme.teacherTips,
       specialGimmick: selectedTheme.specialGimmick,
       targetGrade: "전교생",
-      teacherName: "김하늘 선생님",
+      teacherName: teacherName || "선생님",
       status: "SUBMITTING",
       submissionStartDate,
       submissionStartTime,
@@ -123,30 +167,8 @@ export default function ThemeAndOptionWizardModal({
     onClose();
   };
 
-  const handleDownloadHwp = async () => {
-    try {
-      const blob = await generateHwpxDraft({
-        title: selectedTheme.title,
-        themeName: selectedTheme.title,
-        intent: selectedTheme.intent,
-        targetGrade: "전교생 (1~6학년)",
-        submissionRange: `${submissionStartDate} ${submissionStartTime} ~ ${submissionEndDate} ${submissionEndTime}`,
-        votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
-        teacherTips: selectedTheme.teacherTips,
-        schoolName: "한재초등학교",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `[기안문_계획안]_${selectedTheme.title}.hwpx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-      alert("HWPX 생성 중 오류가 발생했습니다.");
-    }
+  const handleDownloadHwp = () => {
+    setIsDraftModalOpen(true);
   };
 
   return (
@@ -630,6 +652,22 @@ export default function ThemeAndOptionWizardModal({
         )}
 
       </div>
+
+      {/* 기안문 표준 HWPX 다운로드 & K-에듀파인 원클릭 복사 모달 */}
+      <DraftModal
+        isOpen={isDraftModalOpen}
+        onClose={() => setIsDraftModalOpen(false)}
+        params={{
+          title: selectedTheme.title,
+          themeName: selectedTheme.title,
+          intent: selectedTheme.intent,
+          targetGrade: "전교생 (1~6학년)",
+          submissionRange: `${submissionStartDate} ${submissionStartTime} ~ ${submissionEndDate} ${submissionEndTime}`,
+          votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
+          teacherTips: selectedTheme.teacherTips,
+          schoolName: schoolName,
+        }}
+      />
     </div>
   );
 }

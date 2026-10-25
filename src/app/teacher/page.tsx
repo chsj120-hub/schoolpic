@@ -15,6 +15,7 @@ import { TeacherUserGuideModal } from "@/components/TeacherUserGuideModal";
 import { Footer } from "@/components/Footer";
 import { downloadSubmissionsZip } from "@/lib/zipBackupGenerator";
 import { generateHwpxDraft } from "@/lib/hwpxGenerator";
+import { DraftModal } from "@/components/DraftModal";
 import {
   School,
   Sparkles,
@@ -71,6 +72,15 @@ export default function TeacherAdminPage() {
   const [schoolName, setSchoolName] = useState("한재초등학교");
   const [schoolCode, setSchoolCode] = useState("JNE-3012");
   const [teacherName, setTeacherName] = useState("김선생님");
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherRole, setTeacherRole] = useState("담임교사");
+  const [isDevAdmin, setIsDevAdmin] = useState(false);
+
+  // 운영 중인 사진전 목록 (신규 가입 학교는 초기 개설 사진전 없음 [])
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  // 현재 선택되어 관리 중인 사진전 ID
+  const [selectedChallengeId, setSelectedChallengeId] = useState<string>("");
+  const currentChallenge = challenges.find((c) => c.id === selectedChallengeId) || challenges[0] || null;
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -78,9 +88,48 @@ export default function TeacherAdminPage() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
+          if (parsed.email) setTeacherEmail(parsed.email);
           if (parsed.schoolName) setSchoolName(parsed.schoolName);
           if (parsed.schoolCode) setSchoolCode(parsed.schoolCode);
           if (parsed.name) setTeacherName(parsed.name);
+          if (parsed.roleGrade) setTeacherRole(parsed.roleGrade);
+
+          // 개발자/관리자 전용 계정 여부 판단 (chsj120@gmail.com, 총괄 관리자, TST-7777)
+          const isDev =
+            parsed.email === "chsj120@gmail.com" ||
+            parsed.roleGrade === "총괄 관리자" ||
+            parsed.schoolCode === "TST-7777";
+          setIsDevAdmin(isDev);
+
+          // 해당 학교의 개설된 사진전 로드
+          const savedChallenges = localStorage.getItem(`schoolpick_challenges_${parsed.schoolCode}`);
+          if (savedChallenges) {
+            try {
+              const chList = JSON.parse(savedChallenges);
+              if (Array.isArray(chList)) {
+                setChallenges(chList);
+                if (chList.length > 0) {
+                  setSelectedChallengeId(chList[0].id);
+                } else {
+                  setSelectedChallengeId("");
+                  setSubmissions([]);
+                }
+              }
+            } catch (err) {
+              console.error(err);
+            }
+          } else {
+            // 저장된 사진전이 없는 경우:
+            // 개발자 테스트 학교(TST-7777)만 데모용 예시 챌린지 1건 제공, 그 외 일반 학교/신규 가입은 빈 상태([])
+            if (parsed.schoolCode === "TST-7777") {
+              setChallenges(INITIAL_CHALLENGES);
+              setSelectedChallengeId(INITIAL_CHALLENGES[0].id);
+            } else {
+              setChallenges([]);
+              setSelectedChallengeId("");
+              setSubmissions([]);
+            }
+          }
         } catch (e) {
           console.error(e);
         }
@@ -93,12 +142,6 @@ export default function TeacherAdminPage() {
 
   // 4대 네비게이션 탭 상태
   const [activeNav, setActiveNav] = useState<"dashboard" | "create" | "review" | "export">("dashboard");
-
-  // 운영 중인 사진전 목록
-  const [challenges, setChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
-  // 현재 선택되어 관리 중인 사진전 ID
-  const [selectedChallengeId, setSelectedChallengeId] = useState<string>(INITIAL_CHALLENGES[0].id);
-  const currentChallenge = challenges.find((c) => c.id === selectedChallengeId) || challenges[0];
 
   // 접수된 출품작 검수 목록
   const [submissions, setSubmissions] = useState<Array<PhotoSubmission & { isInternalApproved: boolean; isExternalApproved: boolean }>>(() => {
@@ -170,24 +213,59 @@ export default function TeacherAdminPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // 특별상 수여 모달 상태
+  // 특별상 수여 및 기안문 모달 상태
   const [isSpecialAwardModalOpen, setIsSpecialAwardModalOpen] = useState(false);
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
   const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>(SAMPLE_SUBMISSIONS[0].id);
   const [specialAwardTitle, setSpecialAwardTitle] = useState("💡 싱크로율 대폭발 아이디어 특별상");
   const [specialAwardReason, setSpecialAwardReason] = useState("일상 사물의 조형적 특징을 예리하게 관찰하여 독창적인 시각 표현을 완성하고 학급에 큰 웃음을 선사함.");
 
   // ============================================================================
-  // 이벤트 타임라인 및 데이터 보관 설정 상태 (실제 날짜/시간 선택 지원)
+  // 이벤트 타임라인 및 데이터 보관 설정 상태 (오늘 날짜 기준 자동 최신화)
   // ============================================================================
-  const [submissionStartDate, setSubmissionStartDate] = useState(INITIAL_CHALLENGES[0].submissionStartDate || "2026-11-02");
-  const [submissionStartTime, setSubmissionStartTime] = useState(INITIAL_CHALLENGES[0].submissionStartTime || "09:00");
-  const [submissionEndDate, setSubmissionEndDate] = useState(INITIAL_CHALLENGES[0].submissionEndDate || "2026-11-06");
-  const [submissionEndTime, setSubmissionEndTime] = useState(INITIAL_CHALLENGES[0].submissionEndTime || "16:00");
+  const todayDefaultDates = (() => {
+    const now = new Date();
+    const format = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
 
-  const [votingStartDate, setVotingStartDate] = useState(INITIAL_CHALLENGES[0].votingStartDate || "2026-11-09");
-  const [votingStartTime, setVotingStartTime] = useState(INITIAL_CHALLENGES[0].votingStartTime || "09:00");
-  const [votingEndDate, setVotingEndDate] = useState(INITIAL_CHALLENGES[0].votingEndDate || "2026-11-11");
-  const [votingEndTime, setVotingEndTime] = useState(INITIAL_CHALLENGES[0].votingEndTime || "18:00");
+    const subStart = new Date(now);
+    const subEnd = new Date(now);
+    subEnd.setDate(now.getDate() + 7);
+
+    const voteStart = new Date(now);
+    voteStart.setDate(now.getDate() + 8);
+    const voteEnd = new Date(now);
+    voteEnd.setDate(now.getDate() + 11);
+
+    return {
+      subStart: format(subStart),
+      subEnd: format(subEnd),
+      voteStart: format(voteStart),
+      voteEnd: format(voteEnd),
+    };
+  })();
+
+  const [submissionStartDate, setSubmissionStartDate] = useState(
+    currentChallenge?.submissionStartDate || todayDefaultDates.subStart
+  );
+  const [submissionStartTime, setSubmissionStartTime] = useState(currentChallenge?.submissionStartTime || "09:00");
+  const [submissionEndDate, setSubmissionEndDate] = useState(
+    currentChallenge?.submissionEndDate || todayDefaultDates.subEnd
+  );
+  const [submissionEndTime, setSubmissionEndTime] = useState(currentChallenge?.submissionEndTime || "16:00");
+
+  const [votingStartDate, setVotingStartDate] = useState(
+    currentChallenge?.votingStartDate || todayDefaultDates.voteStart
+  );
+  const [votingStartTime, setVotingStartTime] = useState(currentChallenge?.votingStartTime || "09:00");
+  const [votingEndDate, setVotingEndDate] = useState(
+    currentChallenge?.votingEndDate || todayDefaultDates.voteEnd
+  );
+  const [votingEndTime, setVotingEndTime] = useState(currentChallenge?.votingEndTime || "18:00");
 
   const [resultStartDate, setResultStartDate] = useState("2026-11-12");
   const [resultStartTime, setResultStartTime] = useState("09:00");
@@ -210,23 +288,26 @@ export default function TeacherAdminPage() {
 
   // 대시보드에서 날짜 및 시간 변경 저장 핸들러 (요청: 대시보드에서 선택해서 변경 가능하도록 기능 구현)
   const handleSaveTimelineDates = () => {
-    setChallenges((prev) =>
-      prev.map((ch) =>
-        ch.id === selectedChallengeId
-          ? {
-              ...ch,
-              submissionStartDate,
-              submissionStartTime,
-              submissionEndDate,
-              submissionEndTime,
-              votingStartDate,
-              votingStartTime,
-              votingEndDate,
-              votingEndTime,
-            }
-          : ch
-      )
+    if (!currentChallenge) return;
+    const updated = challenges.map((ch) =>
+      ch.id === selectedChallengeId
+        ? {
+            ...ch,
+            submissionStartDate,
+            submissionStartTime,
+            submissionEndDate,
+            submissionEndTime,
+            votingStartDate,
+            votingStartTime,
+            votingEndDate,
+            votingEndTime,
+          }
+        : ch
     );
+    setChallenges(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+    }
     showToast(
       `💾 타임라인 일정 변경 완료 (${currentChallenge.title})`,
       `접수: ${submissionStartDate} ${submissionStartTime}~${submissionEndDate} ${submissionEndTime} | 투표: ${votingStartDate}~${votingEndDate}`,
@@ -279,9 +360,18 @@ export default function TeacherAdminPage() {
 
   // 신규 사진전 등록
   const handleCreateChallenge = (newChallenge: Challenge) => {
-    setChallenges((prev) => [newChallenge, ...prev]);
+    const updated = [newChallenge, ...challenges];
+    setChallenges(updated);
     setSelectedChallengeId(newChallenge.id);
     setSelectedChallengeForQR(newChallenge);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+    }
+    showToast(
+      `🎉 새로운 사진전 [${newChallenge.title}] 개설 완료!`,
+      "안내 포스터 출력 및 기안문 다운로드가 가능합니다.",
+      "success"
+    );
   };
 
   // 3단계 초상권·개인정보 안심 승인: 교사 최종 검수 및 전국 교류관 전송 (학교별 5장 / 전국 100장 쿼터 정책 반영)
@@ -438,6 +528,10 @@ export default function TeacherAdminPage() {
 
   // ZIP 다운로드
   const handleDownloadZip = async () => {
+    if (!currentChallenge) {
+      showToast("⚠️ 다운로드할 사진전이 없습니다.", "먼저 사진전을 선택하거나 개설해주세요.", "warning");
+      return;
+    }
     try {
       await downloadSubmissionsZip({
         challengeTitle: currentChallenge.title,
@@ -449,35 +543,21 @@ export default function TeacherAdminPage() {
     }
   };
 
-  // 기안문 표준 한글(HWPX) 다운로드
-  const handleDownloadHwp = async () => {
-    try {
-      const blob = await generateHwpxDraft({
-        title: currentChallenge.title,
-        themeName: currentChallenge.title,
-        intent: currentChallenge.description,
-        targetGrade: "전교생 (1~6학년)",
-        submissionRange: `${submissionStartDate} ${submissionStartTime} ~ ${submissionEndDate} ${submissionEndTime}`,
-        votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
-        teacherTips: currentChallenge.teacherTips || "창체/자율활동 연계",
-        schoolName: schoolName,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `스쿨픽_기안문_${currentChallenge.title}.hwpx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-      alert("기안문 HWPX 파일 생성 중 오류가 발생했습니다.");
+  // 기안문 표준 한글(HWPX) & K-에듀파인 복사 모달 열기
+  const handleDownloadHwp = () => {
+    if (!currentChallenge) {
+      showToast("⚠️ 기안문을 작성할 사진전이 없습니다.", "먼저 사진전을 개설해주세요.", "warning");
+      return;
     }
+    setIsDraftModalOpen(true);
   };
 
   // 시상용 최종 결과표 CSV 다운로드 (학생, 교직원, 학부모 투표 분리 집계 반영)
   const handleDownloadCsv = () => {
+    if (!currentChallenge) {
+      showToast("⚠️ 내보낼 사진전이 없습니다.", undefined, "warning");
+      return;
+    }
     const rows = [
       ["순위", "시상구분", "학년", "반", "번호", "작가닉네임", "작품제목", "총합득표", "학생투표", "교직원투표", "학부모공감표", "작가노트(30자)", "생기부세특문구"],
       ...submissions.map((s, idx) => [
@@ -507,12 +587,23 @@ export default function TeacherAdminPage() {
     document.body.removeChild(link);
   };
 
-  // 위험 영역 삭제
+  // 위험 영역 삭제 (개설된 사진전 영구 삭제 및 로컬 스토리지 정리)
   const handlePurgeAllData = () => {
+    if (!currentChallenge) return;
     const confirmed = prompt(`⚠️ 위험: [${currentChallenge.title}]의 모든 사진, 투표 데이터가 영구 삭제됩니다.\n계속 진행하시려면 '삭제'를 입력하세요.`);
     if (confirmed === "삭제") {
-      setSubmissions([]);
-      alert("이번 사진전의 모든 데이터가 스토리지에서 영구 파기되었습니다.");
+      const remaining = challenges.filter((c) => c.id !== selectedChallengeId);
+      setChallenges(remaining);
+      if (remaining.length > 0) {
+        setSelectedChallengeId(remaining[0].id);
+      } else {
+        setSelectedChallengeId("");
+        setSubmissions([]);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(remaining));
+      }
+      showToast("🗑️ 사진전이 영구 삭제되었습니다.", "관련 데이터가 안전하게 정리되었습니다.", "info");
     }
   };
 
@@ -523,6 +614,34 @@ export default function TeacherAdminPage() {
     );
     alert("🎉 [전교 투표 공식 오픈] 모든 학생들의 화면이 실시간 투표 모드로 전환되었습니다!");
   };
+
+  // 신규 가입 학교 또는 개설된 사진전이 없을 때 표시되는 빈 상태(Empty State) 카드
+  const renderEmptyState = () => (
+    <div className="bg-white rounded-3xl border-4 border-dashed border-slate-300 p-8 sm:p-14 text-center max-w-2xl mx-auto my-6 shadow-sm space-y-4 animate-in fade-in duration-200">
+      <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center text-4xl mx-auto shadow-inner">
+        📸
+      </div>
+      <div className="space-y-1">
+        <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+          현재 우리 학교에 개설된 사진전이 없습니다
+        </h3>
+        <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+          선생님, 환영합니다! 학생들을 위한 첫 번째 사진전을 개설해보세요.<br className="hidden sm:inline" />
+          18가지 교과/창체 테마 선택부터 A4 안내 포스터, 기안문 생성까지 <b>단 3분</b>이면 완성됩니다.
+        </p>
+      </div>
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setIsWizardOpen(true)}
+          className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3.5 rounded-2xl border-2 border-slate-900 shadow-[0_4px_0_0_#1E293B] hover:shadow-lg transition-all text-sm sm:text-base inline-flex items-center gap-2 cursor-pointer active:translate-y-0.5"
+        >
+          <Sparkles className="w-5 h-5 text-slate-950" />
+          <span>✨ 새 사진전 개설하기 (3분 완성)</span>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F0F7FF] text-slate-800 pb-20 selection:bg-amber-200">
@@ -694,23 +813,39 @@ export default function TeacherAdminPage() {
             <span className="text-xs font-black text-slate-800">
               관리할 사진전 선택 (다중 교사 협업):
             </span>
-            <select
-              value={selectedChallengeId}
-              onChange={(e) => setSelectedChallengeId(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-white text-xs font-black text-slate-900 shadow-2xs focus:outline-none cursor-pointer"
-            >
-              {challenges.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  【 {ch.title} 】 (개설: {ch.createdAt} / {ch.status === "VOTING" ? "전교 투표 중" : "사진 접수 중"} / 담당: {ch.teacherName})
-                </option>
-              ))}
-            </select>
+            {challenges.length > 0 ? (
+              <select
+                value={selectedChallengeId}
+                onChange={(e) => setSelectedChallengeId(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border-2 border-slate-900 bg-white text-xs font-black text-slate-900 shadow-2xs focus:outline-none cursor-pointer"
+              >
+                {challenges.map((ch) => (
+                  <option key={ch.id} value={ch.id}>
+                    【 {ch.title} 】 (개설: {ch.createdAt} / {ch.status === "VOTING" ? "전교 투표 중" : "사진 접수 중"} / 담당: {ch.teacherName})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-300">
+                개설된 사진전 없음
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-300 font-black text-slate-800">
-              현재 선택: <b className="text-sky-700">{currentChallenge.title}</b> (담당: {currentChallenge.teacherName})
-            </span>
+            {currentChallenge ? (
+              <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-300 font-black text-slate-800">
+                현재 선택: <b className="text-sky-700">{currentChallenge.title}</b> (담당: {currentChallenge.teacherName})
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsWizardOpen(true)}
+                className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl border-2 border-slate-900 font-black text-xs shadow-xs cursor-pointer active:translate-y-0.5"
+              >
+                + 새 사진전 개설하기
+              </button>
+            )}
           </div>
 
         </div>
@@ -764,58 +899,64 @@ export default function TeacherAdminPage() {
                 </div>
               </div>
 
-              {/* 서버 자원 보호를 위한 전시 쿼터 및 수명주기(Lifecycle) 게이지 */}
-              <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between text-xs font-black text-slate-800 gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                    <span>서버 자원 보호: 전국 사진 전시 쿼터 및 보관 주기 관리</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
-                    <span>우리 학교 등재작: <b className="text-sky-600 font-black">{submissions.filter(s => s.is_public_shared).length} / 5장</b> (학교당 최대 5장 제한)</span>
-                    <span>•</span>
-                    <span>전국 총 전시: <b className="text-rose-600 font-black">92 / 100장 (92%)</b></span>
-                  </div>
-                </div>
-
-                {/* 프로그레스 바 */}
-                <div className="w-full bg-slate-100 rounded-full h-3 border border-slate-200 overflow-hidden relative">
-                  <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 h-full rounded-full transition-all duration-500" style={{ width: "92%" }} />
-                </div>
-
-                {/* 90장 이상 시 개발자 백업 안내 알림 배너 & 100장 일주일 후 순차 삭제 정책 */}
-                <div className="bg-amber-50 rounded-xl border border-amber-300 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 font-black text-amber-950">
-                      <span>⚠️</span>
-                      <span>[서버 용량 90% 도달 안내] 전국 전시 사진이 90장 이상(92/100장) 등록되었습니다.</span>
+              {/* 서버 자원 보호를 위한 전시 쿼터 및 수명주기(Lifecycle) 게이지 (요청: 일반 사용자에게는 숨기고 개발자/관리자에게만 노출) */}
+              {isDevAdmin && (
+                <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between text-xs font-black text-slate-800 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>서버 자원 보호: 전국 사진 전시 쿼터 및 보관 주기 관리 (개발자 모니터링)</span>
                     </div>
-                    <p className="text-[11px] text-amber-800 font-medium">
-                      서버 부하 방지를 위해 개발자 메일로 백업을 권장하며, <b>100장 도달 시 앞 순번부터 1주일 후 순차 자동 삭제(FIFO)</b>됩니다. (추후 서버 증설 예정)
-                    </p>
+                    <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
+                      <span>우리 학교 등재작: <b className="text-sky-600 font-black">{submissions.filter(s => s.is_public_shared).length} / 5장</b> (학교당 최대 5장 제한)</span>
+                      <span>•</span>
+                      <span>전국 총 전시: <b className="text-emerald-600 font-black">3 / 100장 (3%)</b></span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleNotifyDeveloperBackup}
-                      className="px-2.5 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 text-amber-900 font-black text-xs flex items-center gap-1 cursor-pointer transition-all"
-                    >
-                      <span>✉️</span>
-                      <span>개발자 메일 백업 요청</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadNationalArchiveZip}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
-                    >
-                      <span>📦</span>
-                      <span>전체 백업 다운로드</span>
-                    </button>
+
+                  {/* 프로그레스 바 */}
+                  <div className="w-full bg-slate-100 rounded-full h-3 border border-slate-200 overflow-hidden relative">
+                    <div className="bg-gradient-to-r from-sky-400 to-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: "3%" }} />
+                  </div>
+
+                  {/* 자원 안전 보관 안내 */}
+                  <div className="bg-sky-50 rounded-xl border border-sky-200 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-black text-sky-950">
+                        <span>🛡️</span>
+                        <span>[서버 자원 안정 상태] 현재 총 3장의 전국 전시 사진이 안정적으로 보관 중입니다.</span>
+                      </div>
+                      <p className="text-[11px] text-sky-800 font-medium">
+                        서버 부하 방지를 위해 <b>100장 도달 시 앞 순번부터 1주일 후 순차 자동 삭제(FIFO)</b> 정책이 적용됩니다.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleNotifyDeveloperBackup}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-1 cursor-pointer transition-all"
+                      >
+                        <span>✉️</span>
+                        <span>개발자 백업 요청</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadNationalArchiveZip}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
+                      >
+                        <span>📦</span>
+                        <span>전체 백업 다운로드</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
+            {/* 개설된 사진전이 없는 경우(신규 가입자) 친절한 빈 상태 안내, 있는 경우 정상 관리 대시보드 */}
+            {challenges.length === 0 ? (
+              renderEmptyState()
+            ) : currentChallenge ? (
             <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-6">
               
               <div className="flex flex-wrap items-center justify-between border-b-2 border-slate-100 pb-4 gap-3">
@@ -1062,6 +1203,7 @@ export default function TeacherAdminPage() {
               </div>
 
             </div>
+            ) : null}
           </div>
         )}
 
@@ -1069,6 +1211,9 @@ export default function TeacherAdminPage() {
         {/* [TAB 3]: 갤러리 검수/승인 & 3단계 초상권 안심 파이프라인 */}
         {/* ================================================================== */}
         {activeNav === "review" && (
+          challenges.length === 0 ? (
+            renderEmptyState()
+          ) : currentChallenge ? (
           <div className="space-y-6 animate-in fade-in duration-200">
             
             {/* 현재 진행 중인 사진전 알림 배너 */}
@@ -1413,12 +1558,16 @@ export default function TeacherAdminPage() {
             </div>
 
           </div>
+          ) : null
         )}
 
         {/* ================================================================== */}
         {/* [TAB 4]: 시상 명단 & 특별상(명칭 입력) 수여 & 나이스 기재 */}
         {/* ================================================================== */}
         {activeNav === "export" && (
+          challenges.length === 0 ? (
+            renderEmptyState()
+          ) : currentChallenge ? (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-6 shadow-[0_6px_0_0_#1E293B] space-y-6">
               
@@ -1554,6 +1703,7 @@ export default function TeacherAdminPage() {
 
             </div>
           </div>
+          ) : null
         )}
 
       </main>
@@ -1666,7 +1816,27 @@ export default function TeacherAdminPage() {
           setIsWizardOpen(false);
           setIsFeedbackOpen(true);
         }}
+        schoolName={schoolName}
+        teacherName={teacherName}
       />
+
+      {/* K-에듀파인 기안문 표준 HWPX 다운로드 및 1초 본문 복사 모달 */}
+      {currentChallenge && (
+        <DraftModal
+          isOpen={isDraftModalOpen}
+          onClose={() => setIsDraftModalOpen(false)}
+          params={{
+            title: currentChallenge.title,
+            themeName: currentChallenge.title,
+            intent: currentChallenge.description,
+            targetGrade: currentChallenge.targetGrade || "전교생 (1~6학년)",
+            submissionRange: `${submissionStartDate} ${submissionStartTime} ~ ${submissionEndDate} ${submissionEndTime}`,
+            votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
+            teacherTips: currentChallenge.teacherTips || "창체/자율활동 연계",
+            schoolName: schoolName,
+          }}
+        />
+      )}
 
       {selectedChallengeForQR && (
         <SchoolPosterModal
@@ -1677,13 +1847,15 @@ export default function TeacherAdminPage() {
         />
       )}
 
-      <TeacherPresentationModal
-        isOpen={isPresentationOpen}
-        onClose={() => setIsPresentationOpen(false)}
-        challenge={currentChallenge}
-        submissions={submissions}
-        onOpenVoting={handleOpenVotingFromPresentation}
-      />
+      {currentChallenge && (
+        <TeacherPresentationModal
+          isOpen={isPresentationOpen}
+          onClose={() => setIsPresentationOpen(false)}
+          challenge={currentChallenge}
+          submissions={submissions}
+          onOpenVoting={handleOpenVotingFromPresentation}
+        />
+      )}
 
       <TeacherFeedbackWidget
         isOpenExternal={isFeedbackOpen ? true : undefined}

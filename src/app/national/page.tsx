@@ -38,6 +38,29 @@ export default function NationalExchangePage() {
   const [selectedTheme, setSelectedTheme] = useState<string>("ALL");
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoSubmission | null>(null);
 
+  // 실시간 공용 전시 출품작 동기화 (실제 등록된 수량 현실화)
+  useEffect(() => {
+    async function loadPublicSubmissions() {
+      try {
+        const res = await fetch("/api/submissions?publicOnly=true");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.submissions) && data.submissions.length > 0) {
+          setSubmissions((prev) => {
+            const dbIds = new Set(data.submissions.map((s: any) => s.id));
+            const existingFiltered = prev.filter((s) => !dbIds.has(s.id));
+            return [...data.submissions, ...existingFiltered];
+          });
+        }
+      } catch (e) {
+        console.warn("Could not sync public submissions:", e);
+      }
+    }
+    loadPublicSubmissions();
+  }, []);
+
+  const totalCount = submissions.length;
+  const quotaPercent = Math.min(100, Math.round((totalCount / 100) * 100));
+
   // 뷰 모드: 카드 갤러리형 vs 게시판 리스트형 (요청: 게시판 제작)
   const [viewMode, setViewMode] = useState<"card" | "board">("card");
 
@@ -80,11 +103,11 @@ export default function NationalExchangePage() {
 
   // 백업 안내 핸들러
   const handleNotifyDeveloperBackup = () => {
-    alert("✉️ [개발자 메일 백업 요청 전송 완료]\n수신처: dev@schoolpick.kr\n내용: 전국 스쿨 교류관 전시 사진 90장 도달에 따른 고화질 ZIP 아카이브 콜드 백업 요청이 전달되었습니다.");
+    alert(`✉️ [개발자 메일 백업 요청 전송 완료]\n수신처: dev@schoolpick.kr\n내용: 전국 스쿨 교류관 전시 사진(${totalCount}/100장) 고화질 ZIP 아카이브 콜드 백업 요청이 전달되었습니다.`);
   };
 
   const handleDownloadArchive = () => {
-    alert("📦 [전체 아카이브 백업 다운로드]\n현재 전국 교류관에 등재된 92장의 고화질 사진 및 메타데이터를 ZIP 파일로 생성합니다.");
+    alert(`📦 [전체 아카이브 백업 다운로드]\n현재 전국 교류관에 등재된 ${totalCount}장의 고화질 사진 및 메타데이터를 ZIP 파일로 생성합니다.`);
   };
 
   // 필터링 적용
@@ -206,8 +229,12 @@ export default function NationalExchangePage() {
               <span className="text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
                 학교별 한도: 학교당 최대 5장
               </span>
-              <span className="text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200">
-                전국 총 전시: 92 / 100장 (92%)
+              <span className={`px-2.5 py-0.5 rounded-lg border ${
+                totalCount >= 90
+                  ? "text-rose-700 bg-rose-50 border-rose-200"
+                  : "text-emerald-700 bg-emerald-50 border-emerald-200"
+              }`}>
+                전국 총 전시: {totalCount} / 100장 ({quotaPercent}%)
               </span>
             </div>
           </div>
@@ -215,40 +242,71 @@ export default function NationalExchangePage() {
           {/* 용량 프로그레스 바 */}
           <div className="space-y-1">
             <div className="w-full bg-slate-100 rounded-full h-3 border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 h-full rounded-full transition-all duration-500" style={{ width: "92%" }} />
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  totalCount >= 90
+                    ? "bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500"
+                    : "bg-gradient-to-r from-sky-400 to-emerald-500"
+                }`}
+                style={{ width: `${Math.max(quotaPercent, 3)}%` }}
+              />
             </div>
           </div>
 
-          {/* 90장 이상 백업 권장 안내 배너 & 100장 초과 시 FIFO 삭제 정책 */}
-          <div className="bg-amber-50 rounded-2xl border border-amber-300 p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 font-black text-amber-950">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>[서버 용량 90% 도달 알림] 현재 총 92장의 사진이 전시 중입니다.</span>
+          {/* 90장 이상 백업 권장 안내 배너 vs 평상시 자원 안전 상태 배너 */}
+          {totalCount >= 90 ? (
+            <div className="bg-amber-50 rounded-2xl border border-amber-300 p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-black text-amber-950">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>[서버 용량 90% 도달 알림] 현재 총 {totalCount}장의 사진이 전시 중입니다.</span>
+                </div>
+                <p className="text-[11px] text-amber-900 font-medium">
+                  서버 부하 방지를 위해 <b>개발자 메일로 백업을 권장</b>하며, <b>100장이 차면 앞 순번(오래된 작품)부터 일주일 후 순차 자동 삭제</b>됩니다. (추후 서버 증설 예정)
+                </p>
               </div>
-              <p className="text-[11px] text-amber-900 font-medium">
-                서버 부하 방지를 위해 <b>개발자 메일로 백업을 권장</b>하며, <b>100장이 차면 앞 순번(오래된 작품)부터 일주일 후 순차 자동 삭제</b>됩니다. (추후 서버 증설 예정)
-              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleNotifyDeveloperBackup}
+                  className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white hover:bg-amber-100 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                >
+                  <Mail className="w-3.5 h-3.5 text-amber-600" />
+                  <span>개발자 메일 백업 요청</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadArchive}
+                  className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-200" />
+                  <span>전체 백업 다운로드</span>
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleNotifyDeveloperBackup}
-                className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white hover:bg-amber-100 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
-              >
-                <Mail className="w-3.5 h-3.5 text-amber-600" />
-                <span>개발자 메일 백업 요청</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadArchive}
-                className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-200" />
-                <span>전체 백업 다운로드</span>
-              </button>
+          ) : (
+            <div className="bg-sky-50 rounded-2xl border border-sky-200 p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-black text-sky-950">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>[서버 자원 안정] 현재 총 {totalCount}장의 전국 우수작이 전시 중입니다. (잔여 한도: {100 - totalCount}장)</span>
+                </div>
+                <p className="text-[11px] text-sky-800 font-medium">
+                  모든 출품작은 학생·학부모·교사의 3단계 안심 승인을 거쳐 게시되며, 100장 한도 내에서 안전하게 아카이빙됩니다.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDownloadArchive}
+                  className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 text-white font-black text-xs flex items-center gap-1 hover:bg-slate-800 cursor-pointer shadow-xs transition-all"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-200" />
+                  <span>전체 백업 다운로드 ({totalCount}장)</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 4. 필터 바 & 뷰 모드 토글 (갤러리 카드형 vs 게시판 리스트형) */}
