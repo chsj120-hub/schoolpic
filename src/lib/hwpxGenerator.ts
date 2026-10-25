@@ -4,76 +4,208 @@ export interface HwpxDraftParams {
   title: string;
   themeName: string;
   intent: string;
-  targetGrade: string;
-  submissionRange: string;
-  votingRange: string;
-  teacherTips: string;
+  targetGrade?: string;
+  submissionRange?: string;
+  votingRange?: string;
+  teacherTips?: string;
   schoolName: string;
+  submissionStartDate?: string;
+  submissionStartTime?: string;
+  submissionEndDate?: string;
+  submissionEndTime?: string;
+  votingStartDate?: string;
+  votingStartTime?: string;
+  votingEndDate?: string;
+  votingEndTime?: string;
+}
+
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+function parseAndFormatDate(
+  dateStr?: string,
+  timeStr?: string
+): { fullKorean: string; short: string; rawDate: Date } {
+  const fallback = new Date();
+  if (!dateStr) {
+    const y = fallback.getFullYear();
+    const m = fallback.getMonth() + 1;
+    const d = fallback.getDate();
+    const day = DAY_NAMES[fallback.getDay()];
+    return {
+      fullKorean: `${y}년 ${m}월 ${d}일(${day})`,
+      short: `${y}. ${String(m).padStart(2, "0")}. ${String(d).padStart(2, "0")}`,
+      rawDate: fallback,
+    };
+  }
+
+  const parts = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (!parts) {
+    return { fullKorean: dateStr, short: dateStr, rawDate: fallback };
+  }
+
+  const y = parseInt(parts[1], 10);
+  const m = parseInt(parts[2], 10);
+  const d = parseInt(parts[3], 10);
+  const dt = new Date(y, m - 1, d);
+  const day = DAY_NAMES[dt.getDay()] || "";
+  const timeSuffix = timeStr ? ` ${timeStr}` : "";
+
+  return {
+    fullKorean: `${y}년 ${m}월 ${d}일(${day})${timeSuffix}`,
+    short: `${y}. ${String(m).padStart(2, "0")}. ${String(d).padStart(2, "0")}`,
+    rawDate: dt,
+  };
 }
 
 /**
- * K-에듀파인 기안문 표준 텍스트 생성기 (에듀파인 본문 복사 & 붙여넣기용)
+ * 사용자 제공 K-에듀파인 표준 기안문 서식 기반 자동화 텍스트 생성기
  */
-export function generateDraftText({
-  title,
-  themeName,
-  intent,
-  targetGrade,
-  submissionRange,
-  votingRange,
-  teacherTips,
-  schoolName,
-}: HwpxDraftParams): string {
-  return `[${schoolName} 내부결재 기안문(안)]
+export function generateDraftText(params: HwpxDraftParams): string {
+  const school = params.schoolName || "우리학교";
+  const title = params.title || "교내 사진전";
+  const theme = params.themeName || title;
+  const targetGrade = params.targetGrade || "전교생 (1~6학년)";
+  const intent =
+    params.intent ||
+    "학교의 숨은 아름다움을 찾아 촬영하며 학교를 사랑하는 마음을 기른다.";
 
-1. 사업명: ${schoolName} [${themeName}] 디지털 사진전 운영 계획(안)
+  const subStart = parseAndFormatDate(
+    params.submissionStartDate || params.submissionRange?.split("~")[0]?.trim(),
+    params.submissionStartTime
+  );
+  const subEnd = parseAndFormatDate(
+    params.submissionEndDate || params.submissionRange?.split("~")[1]?.trim(),
+    params.submissionEndTime
+  );
+  const voteStart = parseAndFormatDate(
+    params.votingStartDate || params.votingRange?.split("~")[0]?.trim(),
+    params.votingStartTime
+  );
+  const voteEnd = parseAndFormatDate(
+    params.votingEndDate || params.votingRange?.split("~")[1]?.trim(),
+    params.votingEndTime
+  );
 
-2. 추진 배경 및 기획 의도:
-   가. ${intent}
-   나. 전교생 및 학급 구성원이 함께 참여하여 건전한 학교 디지털 문화 및 공동체 인성 함양
+  const resultDate = new Date(voteEnd.rawDate);
+  resultDate.setDate(resultDate.getDate() + 1);
+  const resultShort = `${resultDate.getFullYear()}. ${String(
+    resultDate.getMonth() + 1
+  ).padStart(2, "0")}. ${String(resultDate.getDate()).padStart(2, "0")}`;
 
-3. 운영 개요:
-   가. 행사명: ${title}
-   나. 대상: ${targetGrade}
-   다. 주최/주관: ${schoolName}
+  const currentYear = subStart.rawDate.getFullYear() || 2026;
 
-4. 세부 추진 일정:
-   가. 사진 접수 기간: ${submissionRange}
-   나. 전교 투표 기간: ${votingRange}
-   다. 결과 발표 및 시상: 투표 종료 익일 대시보드 공지
+  return `제목: [${currentYear}학년도 ${school} ${title} 실시 계획(안)]
+관련: [${currentYear}학년도 학교교육과정 운영 계획(창의적 체험활동)]
 
-5. 학교생활기록부(나이스) 연계 방안:
-   - ${teacherTips || "창의적 체험활동(자율/동아리) 및 진로 특기사항 연계 기록 권장"}
+학생들의 예술적 감수성을 함양하고 학교에 대한 자긍심을 고취하고자 [${currentYear}학년도 교내 사진전]을 다음과 같이 실시하고자 합니다.
 
-6. 개인정보 및 학생 초상권 3중 안심 보호 대책:
-   가. 학생 실명 및 민감 개인정보 수집 원천 배제 (학년, 반, 번호, 작가 닉네임만 사용)
-   나. 3단계 안심 승인 체계 준수 (1단계 학생 자발적 동의 -> 2단계 학부모 모바일 동의 -> 3단계 교사 최종 검수)
-   다. 외부 교류관 공유는 3단계 동의가 완료된 사진 중 교사 승인작에 한하여 엄격 제한
-   라. 행사 종료 후 개인정보 지침에 따라 서버 데이터 안전 파기 (행사 종료 7일 후)
+가. 행사명: [${title}]
+나. 대상: [${targetGrade}]
+다. 장소: [${school}] 일대
+라. 방법: 스마트폰 또는 카메라로 촬영 후 [schoolpic] 어플리케이션을 활용하여 접수 및 심사 진행
+마. 공모 기간: ${subStart.fullKorean} ~ ${subEnd.fullKorean}
+바. 투표 기간: ${voteStart.fullKorean} ~ ${voteEnd.fullKorean}
+사. 시상 계획: 붙임 참조
+아. 소요 예산: [총 150,000원] (재원: [학교운영비 / 교육과정운영비])
 
-7. 소요 예산: 0원 (자체 디지털 플랫폼 '스쿨픽' 활용 무상 운영)
+붙임  [${currentYear}학년도 교내 사진전 실시 계획(안)] 1부.  끝.
 
-8. 행정 사항 및 기대 효과:
-   가. 종이 사진 인화 및 판넬 제작 예산 절감
-   나. 학생들의 주도적 미디어 리터러시 역량 및 디지털 시민성 제고
+
+[붙임] ${currentYear}학년도 교내 사진전 실시 계획(안)
+
+1. 목적
+가. ${intent}
+나. 디지털 도구(schoolpic 어플)를 활용한 참여형 행사를 통해 정보 활용 능력 및 미적 감수성을 표현한다.
+다. 일상 속 긍정적 시각 표현을 통해 급우 간 유대감 및 건전한 학교 디지털 문화를 형성한다.
+
+2. 방침
+가. 지정된 대상 학년 전원이 자유롭게 참여할 수 있도록 유도한다.
+나. 공정성을 위해 전교생 및 교직원이 참여하는 온라인 투표(schoolpic)를 반영한다.
+다. 수상작은 추후 교내 갤러리 및 학교 홈페이지에 전시한다.
+라. 3단계 안심 승인(학생 자발적 동의 -> 학부모 모바일 동의 -> 교사 최종 검수)을 통해 학생 개인정보 및 초상권을 철저히 보호한다.
+
+3. 세부 추진 계획
+가. 대상: [${targetGrade}]
+나. 장소: [${school}] 일대 (교실, 운동장, 특별실 등 안전이 확보된 구역)
+다. 주제: [${theme}] - ${intent}
+라. 일정 요약:
+  - 작품 공모: ${subStart.short} ~ ${subEnd.short}
+  - 온라인 투표: ${voteStart.short} ~ ${voteEnd.short}
+  - 결과 발표 및 시상: ${resultShort}
+
+4. 참여 및 심사 방법 (schoolpic 어플 활용)
+가. 접수: 학생이 [${school}] 일대에서 촬영한 사진을 스마트 기기를 통해 'schoolpic' 어플 내 지정된 공모전 탭에 업로드 (1인당 1작품 제한)
+나. 투표 및 심사:
+  1) 'schoolpic' 어플 내에 개설된 온라인 투표 페이지를 활용하여 학생 및 교직원 1인당 2~3작품씩 투표 추진
+  2) 투표 결과(70%)와 외부/교내 심사위원 점수(30%)를 합산하여 최종 선정
+
+5. 시상 계획
+※ 시상 인원은 참가 인원 및 작품 수준에 따라 일부 조정될 수 있음.
+┌────────────────┬──────────┬────────────────────────┬─────────────────────┐
+│      훈격      │ 시상 인원│          부상          │        비고         │
+├────────────────┼──────────┼────────────────────────┼─────────────────────┤
+│ 최우수상(금상) │   1명    │ 문화상품권 [20,000원]  │ 학년별 최고 득점자  │
+│ 우수상(silver) │   2명    │ 문화상품권 [10,000원]  │ 고득점자 순         │
+│ 장려상(bronze) │   5명    │ 문화상품권 [5,000원]   │ 고득점자 순         │
+│ 참가상         │   전원   │ 소정의 기념품([볼펜 등])│ 탈락자 전원 지급    │
+└────────────────┴──────────┴────────────────────────┴─────────────────────┘
+
+6. 소요 예산 (산출 내역 예시)
+※ 총 소요 예산: [150,000원]
+┌──────────────────────┬─────────────────────────────┬───────────┬─────────────┐
+│         항목         │          산출 내역          │   금액    │    비고     │
+├──────────────────────┼─────────────────────────────┼───────────┼─────────────┤
+│ 상품권(최우수)       │ 20,000원 × 1명              │  20,000원 │ 문화상품권   │
+│ 상품권(우수/장려)    │ 10,000원×2명 / 5,000원×5명│  45,000원 │ 문화상품권   │
+│ 참가 기념품          │ 1,000원 × 50명              │  50,000원 │ 참가학생 전원│
+│ 우수작 인화 및 액자  │ 7,000원 × 5명               │  35,000원 │ 교내 전시용 │
+├──────────────────────┴─────────────────────────────┼───────────┼─────────────┤
+│ 합 계                                              │ 150,000원 │             │
+└───────────────────────────────────────────────────┴───────────┴─────────────┘
+
+7. 기대 효과
+가. 스마트 기기를 활용한 예술 활동을 통해 디지털 리터러시와 심미적 역량을 동시에 강화한다.
+나. 학생들이 주도적으로 참여하는 투표 과정을 통해 민주적 의사결정을 경험한다.
+다. 나이스 학교생활기록부 창의적 체험활동(자율/동아리/진로) 특기사항과 연계하여 학생 성장 기록을 내실화한다.
 `;
 }
 
 /**
- * KS X 6101 기반 OWPML 표준 한글 HWPX 파일 바이너리 생성기
- * 한컴오피스 2014/2018/2020/2022/2024 및 웹 한글에서 손상 없이 정식 열람 지원
+ * KS X 6101 기반 OWPML 표준 한글 HWPX 바이너리 생성기
  */
 export async function generateHwpxDraft(params: HwpxDraftParams): Promise<Blob> {
-  const {
-    title,
-    themeName,
-    intent,
-    targetGrade,
-    submissionRange,
-    votingRange,
-    teacherTips,
-    schoolName,
-  } = params;
+  const school = params.schoolName || "우리학교";
+  const title = params.title || "교내 사진전";
+  const theme = params.themeName || title;
+  const targetGrade = params.targetGrade || "전교생 (1~6학년)";
+  const intent =
+    params.intent ||
+    "학교의 숨은 아름다움을 찾아 촬영하며 학교를 사랑하는 마음을 기른다.";
+
+  const subStart = parseAndFormatDate(
+    params.submissionStartDate || params.submissionRange?.split("~")[0]?.trim(),
+    params.submissionStartTime
+  );
+  const subEnd = parseAndFormatDate(
+    params.submissionEndDate || params.submissionRange?.split("~")[1]?.trim(),
+    params.submissionEndTime
+  );
+  const voteStart = parseAndFormatDate(
+    params.votingStartDate || params.votingRange?.split("~")[0]?.trim(),
+    params.votingStartTime
+  );
+  const voteEnd = parseAndFormatDate(
+    params.votingEndDate || params.votingRange?.split("~")[1]?.trim(),
+    params.votingEndTime
+  );
+
+  const resultDate = new Date(voteEnd.rawDate);
+  resultDate.setDate(resultDate.getDate() + 1);
+  const resultShort = `${resultDate.getFullYear()}. ${String(
+    resultDate.getMonth() + 1
+  ).padStart(2, "0")}. ${String(resultDate.getDate()).padStart(2, "0")}`;
+
+  const currentYear = subStart.rawDate.getFullYear() || 2026;
 
   const zip = new JSZip();
 
@@ -94,11 +226,11 @@ export async function generateHwpxDraft(params: HwpxDraftParams): Promise<Blob> 
 <hh:version xmlns:hh="http://www.hancom.co.kr/hwpml/2011/version" major="1" minor="0" micro="0" buildNumber="0"/>`;
   zip.file("version.xml", versionXml);
 
-  // 4. Contents/content.hpf (OPF 패키지 메타데이터 및 manifest)
+  // 4. Contents/content.hpf
   const contentHpf = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="1.0">
   <opf:metadata>
-    <opf:title>${escapeXml(schoolName)} ${escapeXml(title)} 운영 계획(안)</opf:title>
+    <opf:title>${escapeXml(school)} ${escapeXml(title)} 실시 계획(안)</opf:title>
     <opf:language>ko</opf:language>
   </opf:metadata>
   <opf:manifest>
@@ -111,7 +243,7 @@ export async function generateHwpxDraft(params: HwpxDraftParams): Promise<Blob> 
 </opf:package>`;
   zip.file("Contents/content.hpf", contentHpf);
 
-  // 5. Contents/header.xml (한컴오피스 필수 헤더: 폰트, 문자 속성, 문단 속성, 스타일)
+  // 5. Contents/header.xml (한컴오피스 필수 헤더: 맑은 고딕, 서식 정의)
   const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" version="1.1" secCnt="1">
   <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
@@ -143,26 +275,79 @@ export async function generateHwpxDraft(params: HwpxDraftParams): Promise<Blob> 
 
   // 6. Contents/section0.xml (본문 XML + A4 용지 규격 secPr)
   const paragraphs = [
-    { text: `[${schoolName} 디지털 사진전 운영 계획(안)]`, charPr: 1, paraPr: 1 },
+    { text: `[${currentYear}학년도 ${school} ${title} 실시 계획(안)]`, charPr: 1, paraPr: 1 },
     { text: "", charPr: 0, paraPr: 0 },
-    { text: `1. 사업명: ${schoolName} [${themeName}] 디지털 사진전`, charPr: 2, paraPr: 0 },
-    { text: `2. 추진 배경 및 기획 의도: ${intent}`, charPr: 0, paraPr: 0 },
-    { text: `3. 운영 대상: ${targetGrade}`, charPr: 0, paraPr: 0 },
-    { text: "4. 세부 추진 일정:", charPr: 2, paraPr: 0 },
-    { text: `   가. 사진 접수 기간: ${submissionRange}`, charPr: 0, paraPr: 0 },
-    { text: `   나. 전교 투표 기간: ${votingRange}`, charPr: 0, paraPr: 0 },
-    { text: `5. 학교생활기록부(나이스) 연계 방안: ${teacherTips || "창체/동아리활동 연계"}`, charPr: 0, paraPr: 0 },
-    { text: "6. 개인정보 및 학생 초상권 보호 방안 (3중 안심 잠금):", charPr: 2, paraPr: 0 },
-    { text: "   가. 학생 실명 수집 원천 배제 (학년, 반, 번호, 작가 닉네임만 활용)", charPr: 0, paraPr: 0 },
-    { text: "   나. 3단계 안심 승인(학생 자율 동의 -> 학부모 모바일 동의 -> 교사 최종 검수) 체계 적용", charPr: 0, paraPr: 0 },
-    { text: "   다. 행사 종료 7일 후 서버 개인정보 데이터 안전 자동 파기", charPr: 0, paraPr: 0 },
-    { text: "7. 소요 예산: 0원 (자체 디지털 플랫폼 스쿨픽 무상 활용)", charPr: 2, paraPr: 0 },
-    { text: "8. 기대 효과: 종이 사진 인화 예산 절감 및 학생 주도적 디지털 미디어 창작 역량 증진", charPr: 0, paraPr: 0 },
+    { text: `관련: [${currentYear}학년도 학교교육과정 운영 계획(창의적 체험활동)]`, charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    {
+      text: `학생들의 예술적 감수성을 함양하고 학교에 대한 자긍심을 고취하고자 [${currentYear}학년도 ${title}]을 다음과 같이 실시하고자 합니다.`,
+      charPr: 0,
+      paraPr: 0,
+    },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: `가. 행사명: [${title}]`, charPr: 0, paraPr: 0 },
+    { text: `나. 대상: [${targetGrade}]`, charPr: 0, paraPr: 0 },
+    { text: `다. 장소: [${school}] 일대`, charPr: 0, paraPr: 0 },
+    {
+      text: `라. 방법: 스마트폰 또는 카메라로 촬영 후 [schoolpic] 어플리케이션을 활용하여 접수 및 심사 진행`,
+      charPr: 0,
+      paraPr: 0,
+    },
+    { text: `마. 공모 기간: ${subStart.fullKorean} ~ ${subEnd.fullKorean}`, charPr: 0, paraPr: 0 },
+    { text: `바. 투표 기간: ${voteStart.fullKorean} ~ ${voteEnd.fullKorean}`, charPr: 0, paraPr: 0 },
+    { text: `사. 시상 계획: 붙임 참조`, charPr: 0, paraPr: 0 },
+    { text: `아. 소요 예산: [총 150,000원] (재원: [학교운영비 / 교육과정운영비])`, charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: `붙임  [${currentYear}학년도 교내 사진전 실시 계획(안)] 1부.  끝.`, charPr: 2, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "------------------------------------------------------------", charPr: 0, paraPr: 1 },
+    { text: `[붙임] ${currentYear}학년도 교내 사진전 실시 계획(안)`, charPr: 1, paraPr: 1 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "1. 목적", charPr: 2, paraPr: 0 },
+    { text: `  가. ${intent}`, charPr: 0, paraPr: 0 },
+    { text: "  나. 디지털 도구(schoolpic 어플)를 활용한 참여형 행사를 통해 정보 활용 능력 및 미적 감수성을 표현한다.", charPr: 0, paraPr: 0 },
+    { text: "  다. 일상 속 긍정적 시각 표현을 통해 급우 간 유대감 및 건전한 학교 디지털 문화를 형성한다.", charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "2. 방침", charPr: 2, paraPr: 0 },
+    { text: "  가. 지정된 대상 학년 전원이 자유롭게 참여할 수 있도록 유도한다.", charPr: 0, paraPr: 0 },
+    { text: "  나. 공정성을 위해 전교생 및 교직원이 참여하는 온라인 투표(schoolpic)를 반영한다.", charPr: 0, paraPr: 0 },
+    { text: "  다. 수상작은 추후 교내 갤러리 및 학교 홈페이지에 전시한다.", charPr: 0, paraPr: 0 },
+    { text: "  라. 3단계 안심 승인(학생 자발적 동의 -> 학부모 모바일 동의 -> 교사 최종 검수)을 통해 개인정보 및 초상권을 보호한다.", charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "3. 세부 추진 계획", charPr: 2, paraPr: 0 },
+    { text: `  가. 대상: [${targetGrade}]`, charPr: 0, paraPr: 0 },
+    { text: `  나. 장소: [${school}] 일대 (교실, 운동장, 특별실 등 안전이 확보된 구역)`, charPr: 0, paraPr: 0 },
+    { text: `  다. 주제: [${theme}] - ${intent}`, charPr: 0, paraPr: 0 },
+    { text: `  라. 일정 요약:`, charPr: 0, paraPr: 0 },
+    { text: `    1) 작품 공모: ${subStart.short} ~ ${subEnd.short}`, charPr: 0, paraPr: 0 },
+    { text: `    2) 온라인 투표: ${voteStart.short} ~ ${voteEnd.short}`, charPr: 0, paraPr: 0 },
+    { text: `    3) 결과 발표 및 시상: ${resultShort}`, charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "4. 참여 및 심사 방법 (schoolpic 어플 활용)", charPr: 2, paraPr: 0 },
+    { text: `  가. 접수: 학생이 [${school}] 일대에서 촬영한 사진을 스마트 기기를 통해 'schoolpic' 어플 내 지정된 공모전 탭에 업로드 (1인당 1작품 제한)`, charPr: 0, paraPr: 0 },
+    { text: "  나. 투표 및 심사: 'schoolpic' 어플 내에 개설된 온라인 투표 페이지를 활용하여 학생 및 교직원 1인당 2~3작품씩 투표 추진 (투표 70% + 심사위원 30%)", charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "5. 시상 계획", charPr: 2, paraPr: 0 },
+    { text: "  - 최우수상(금상, 1명): 문화상품권 [20,000원] (학년별 최고 득점자)", charPr: 0, paraPr: 0 },
+    { text: "  - 우수상(silver, 2명): 문화상품권 [10,000원] (고득점자 순)", charPr: 0, paraPr: 0 },
+    { text: "  - 장려상(bronze, 5명): 문화상품권 [5,000원] (고득점자 순)", charPr: 0, paraPr: 0 },
+    { text: "  - 참가상(전원): 소정의 기념품([볼펜 등]) (탈락자 전원 지급)", charPr: 0, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "6. 소요 예산 (산출 내역 예시: 총 150,000원)", charPr: 2, paraPr: 0 },
+    { text: "  - 상품권(최우수): 20,000원 × 1명 = 20,000원", charPr: 0, paraPr: 0 },
+    { text: "  - 상품권(우수/장려): 10,000원 × 2명 + 5,000원 × 5명 = 45,000원", charPr: 0, paraPr: 0 },
+    { text: "  - 참가 기념품: 1,000원 × 50명 = 50,000원", charPr: 0, paraPr: 0 },
+    { text: "  - 우수작 인화 및 액자: 7,000원 × 5명 = 35,000원", charPr: 0, paraPr: 0 },
+    { text: "  - 합계: 150,000원 (재원: 교육과정운영비 / 학교운영비)", charPr: 2, paraPr: 0 },
+    { text: "", charPr: 0, paraPr: 0 },
+    { text: "7. 기대 효과", charPr: 2, paraPr: 0 },
+    { text: "  가. 스마트 기기를 활용한 예술 활동을 통해 디지털 리터러시와 심미적 역량을 동시에 강화한다.", charPr: 0, paraPr: 0 },
+    { text: "  나. 학생들이 주도적으로 참여하는 투표 과정을 통해 민주적 의사결정을 경험한다.", charPr: 0, paraPr: 0 },
+    { text: "  다. 나이스 학교생활기록부 창의적 체험활동(자율/동아리/진로) 특기사항과 연계하여 학생 성장 기록을 내실화한다.", charPr: 0, paraPr: 0 },
   ];
 
   let pXml = "";
   paragraphs.forEach((p, idx) => {
-    // 첫 문단에 A4 용지 속성(secPr) 삽입
     const secPrXml =
       idx === 0
         ? `<hp:secPr id="0"><hp:pagePr width="59528" height="84186" landscape="0" gutterType="LEFT"><hp:margin left="4252" right="4252" top="5669" bottom="4252" header="4252" footer="4252" gutter="0"/></hp:pagePr></hp:secPr>`
