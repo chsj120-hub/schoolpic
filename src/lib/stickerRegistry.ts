@@ -583,6 +583,17 @@ export const STICKER_REGISTRY: StickerDefinition[] = [
 
   // --- [culture-6: 급식 리뷰왕] ---
   {
+    id: "img-stk-c6-jar",
+    themeId: "culture-6",
+    name: "하트 별사탕 꿀병",
+    text: "달콤한 꿀병",
+    icon: "🫙",
+    imageSrc: "/stickers/jar.png",
+    bg: "#ECFDF5",
+    color: "#047857",
+    border: "#A7F3D0",
+  },
+  {
     id: "img-stk-c6-chef-hat",
     themeId: "culture-6",
     name: "미슐랭 셰프 모자",
@@ -784,6 +795,17 @@ export const STICKER_REGISTRY: StickerDefinition[] = [
 
   // --- [subject-1: 과학 식물도감] ---
   {
+    id: "img-stk-s1-bee",
+    themeId: "subject-1",
+    name: "붕붕 꿀벌 비행",
+    text: "붕붕 꿀벌",
+    icon: "🐝",
+    imageSrc: "/stickers/bee.png",
+    bg: "#FEF9C3",
+    color: "#854D0E",
+    border: "#FDE047",
+  },
+  {
     id: "img-stk-s1-fresh-sprout",
     themeId: "subject-1",
     name: "싱그러운 파릇파릇 새싹",
@@ -879,6 +901,17 @@ export const STICKER_REGISTRY: StickerDefinition[] = [
   },
 
   // --- [subject-5: 국어 원고지 문장] ---
+  {
+    id: "img-stk-s5-pencil",
+    themeId: "subject-5",
+    name: "지우개 달린 노랑 연필",
+    text: "감성 연필",
+    icon: "✏️",
+    imageSrc: "/stickers/pencil.png",
+    bg: "#FEF3C7",
+    color: "#78350F",
+    border: "#F59E0B",
+  },
   {
     id: "img-stk-s5-quill-pen",
     themeId: "subject-5",
