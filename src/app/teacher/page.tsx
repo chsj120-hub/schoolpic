@@ -218,6 +218,45 @@ export default function TeacherAdminPage() {
   const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
   const [isAwardResultDraftModalOpen, setIsAwardResultDraftModalOpen] = useState(false);
   const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>(SAMPLE_SUBMISSIONS[0].id);
+
+  // ================= 요구사항 10: 교사 코멘트 & 서면 동의 수동 체크 & 얼굴 가리기 =================
+  const [editingTeacherComments, setEditingTeacherComments] = useState<Record<string, string>>({});
+
+  // 학부모 서면(종이) 동의 수동 체크 토글 (학부모 모바일 동의 시 자동 체크 유지)
+  const handleTogglePaperConsent = (submissionId: string) => {
+    setSubmissions((prev) =>
+      prev.map((s) => {
+        if (s.id === submissionId) {
+          const nextPaper = !s.paper_parent_consent;
+          return {
+            ...s,
+            paper_parent_consent: nextPaper,
+            // 서면 동의 확인 시 2단계 학부모 동의 자동 완료
+            parent_consent: nextPaper ? true : s.parent_consent,
+          };
+        }
+        return s;
+      })
+    );
+    showToast("📄 학부모 서면 동의 상태 업데이트", "가정통신문 회신서(서면 동의서) 상태가 반영되었습니다.", "success");
+  };
+
+  // 교사 코멘트 저장 (학생 화면 '내 출품작'에서 해당 학생만 1:1 확인)
+  const handleSaveTeacherComment = (submissionId: string) => {
+    const comment = editingTeacherComments[submissionId] ?? "";
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === submissionId ? { ...s, teacher_comment: comment } : s))
+    );
+    showToast("🧑‍🏫 선생님 피드백 저장 완료", "작성하신 코멘트는 학생 화면의 '내 출품작'에서 해당 학생만 1:1로 확인합니다.", "success");
+  };
+
+  // 얼굴 보호(초상권 마스킹) 모드 토글 (스티커 / 블러)
+  const handleToggleFacePrivacyMode = (submissionId: string, mode: "none" | "emoji" | "blur") => {
+    setSubmissions((prev) =>
+      prev.map((s) => (s.id === submissionId ? { ...s, face_privacy_mode: mode } : s))
+    );
+    showToast("🛡️ 초상권 얼굴 보호 모드", `${mode === "emoji" ? "귀여운 스티커/이모지 가리기" : mode === "blur" ? "소프트 블러 가리기" : "기본 원본"}가 적용되었습니다.`, "info");
+  };
   const [specialAwardTitle, setSpecialAwardTitle] = useState("💡 싱크로율 대폭발 아이디어 특별상");
   const [specialAwardReason, setSpecialAwardReason] = useState("일상 사물의 조형적 특징을 예리하게 관찰하여 독창적인 시각 표현을 완성하고 학급에 큰 웃음을 선사함.");
 
@@ -1370,18 +1409,66 @@ export default function TeacherAdminPage() {
                         </div>
 
                         {/* 3단계 안심 승인 파이프라인 현황 바 */}
-                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-1.5 text-[11px] font-bold">
+                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 space-y-2 text-[11px] font-bold">
                           <div className="flex items-center justify-between text-slate-600">
                             <span>1단계 학생 동의:</span>
                             <span className={item.student_consent ? "text-emerald-600 font-black" : "text-slate-400"}>
                               {item.student_consent ? "✓ 완료" : "미동의"}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span>2단계 학부모 동의:</span>
-                            <span className={item.parent_consent ? "text-emerald-600 font-black" : "text-slate-400"}>
-                              {item.parent_consent ? "✓ 완료" : "미동의"}
-                            </span>
+
+                          {/* 2단계 학부모 동의 (모바일 자동 연동 + 종이 서면 수동 체크 지원) */}
+                          <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-1">
+                            <div className="flex items-center justify-between text-slate-600">
+                              <span>2단계 학부모 동의:</span>
+                              <span className={item.parent_consent ? "text-emerald-600 font-black" : "text-slate-400"}>
+                                {item.parent_consent
+                                  ? (item.paper_parent_consent ? "✓ 서면(종이) 접수" : "✓ 모바일 완료")
+                                  : "미동의"}
+                              </span>
+                            </div>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 text-[10px] font-bold select-none pt-0.5">
+                              <input
+                                type="checkbox"
+                                checked={!!item.paper_parent_consent || (item.parent_consent && !item.paper_parent_consent)}
+                                onChange={() => handleTogglePaperConsent(item.id)}
+                                className="accent-emerald-600 w-3.5 h-3.5 rounded cursor-pointer"
+                              />
+                              <span>
+                                {item.parent_consent && !item.paper_parent_consent
+                                  ? "📱 학부모 모바일 직접 동의됨 (자동)"
+                                  : "📄 서면(종이 동의서) 수동 확인"}
+                              </span>
+                            </label>
+                          </div>
+
+                          {/* 전국 자랑하기 얼굴 가리기 모드 (스티커 vs 블러) */}
+                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200 text-[10px]">
+                            <span className="text-slate-500 font-bold">얼굴 가리기:</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFacePrivacyMode(item.id, item.face_privacy_mode === "emoji" ? "none" : "emoji")}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                                  item.face_privacy_mode === "emoji"
+                                    ? "bg-amber-400 border-amber-500 text-slate-950 shadow-2xs"
+                                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                😊 스티커
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFacePrivacyMode(item.id, item.face_privacy_mode === "blur" ? "none" : "blur")}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                                  item.face_privacy_mode === "blur"
+                                    ? "bg-sky-400 border-sky-500 text-slate-950 shadow-2xs"
+                                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                🌫️ 블러
+                              </button>
+                            </div>
                           </div>
 
                           {/* 3단계 교사 최종 검수 & 전국 자랑하기 전송 버튼 */}
@@ -1399,6 +1486,43 @@ export default function TeacherAdminPage() {
                               {item.is_public_shared ? "전국 교류관 등재됨 (공개 취소)" : "3단계: 전국 자랑하기 전송"}
                             </span>
                           </button>
+                        </div>
+
+                        {/* 선생님 칭찬 & 지도 코멘트 입력란 (출품자 본인만 열람) */}
+                        <div className="bg-amber-50/70 rounded-xl p-2.5 border border-amber-200 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between font-black text-amber-950">
+                            <span className="flex items-center gap-1 text-[11px]">
+                              <span>🧑‍🏫</span>
+                              <span>선생님 코멘트 (학생 본인만 1:1 열람)</span>
+                            </span>
+                            {item.parent_comment && (
+                              <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-bold">
+                                💌 학부모 응원 등록됨
+                              </span>
+                            )}
+                          </div>
+                          {item.parent_comment && (
+                            <p className="text-[11px] text-slate-600 bg-white p-1.5 rounded-lg border border-slate-200 font-maruburi">
+                              &ldquo;{item.parent_comment}&rdquo;
+                            </p>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              maxLength={60}
+                              placeholder="학생에게 보낼 칭찬/피드백 한마디..."
+                              value={editingTeacherComments[item.id] !== undefined ? editingTeacherComments[item.id] : (item.teacher_comment || "")}
+                              onChange={(e) => setEditingTeacherComments((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                              className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveTeacherComment(item.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-[11px] border border-amber-500 shrink-0 cursor-pointer"
+                            >
+                              저장
+                            </button>
+                          </div>
                         </div>
 
                         {/* 교직원 추천 투표 버튼 (요청: 교직원 투표 기능 구현) */}

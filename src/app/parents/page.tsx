@@ -41,6 +41,81 @@ export default function ParentsVotingPage() {
   // 기타 상단 모달 상태
   const [activeInfoModal, setActiveInfoModal] = useState<"guide" | "notice" | "myStatus" | null>(null);
 
+  // ================= 요구사항 10: 학부모 자녀 확인 & 2단계 동의 & 응원댓글 상태 =================
+  const [childGrade, setChildGrade] = useState<string>("5");
+  const [childClass, setChildClass] = useState<string>("2");
+  const [childNumber, setChildNumber] = useState<string>("14");
+  const [childPin, setChildPin] = useState<string>("1234");
+  const [parentAuthPhone, setParentAuthPhone] = useState<string>("");
+  const [isChildVerified, setIsChildVerified] = useState<boolean>(false);
+  const [matchedChildPhoto, setMatchedChildPhoto] = useState<PhotoSubmission | null>(null);
+  const [childCommentInput, setChildCommentInput] = useState<string>("");
+
+  // 자녀 출품작 조회 및 PIN 인증
+  const handleVerifyChild = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parentAuthPhone.trim()) {
+      alert("학부모 휴대폰 번호를 입력해주세요.");
+      return;
+    }
+    const cleanPhone = parentAuthPhone.replace(/[^0-9]/g, "");
+    if (cleanPhone.length < 10) {
+      alert("올바른 휴대폰 번호를 입력해주세요 (예: 010-1234-5678).");
+      return;
+    }
+
+    const found = submissions.find(
+      (s) =>
+        s.studentGrade === Number(childGrade) &&
+        s.studentClass === Number(childClass) &&
+        s.studentNumber === Number(childNumber)
+    );
+
+    if (!found) {
+      alert(`입력하신 ${childGrade}학년 ${childClass}반 ${childNumber}번 학생의 출품작을 찾을 수 없습니다.\n학년·반·번호를 다시 확인해주세요.`);
+      return;
+    }
+
+    // PIN 번호 검증 (설정된 PIN이 있으면 일치 확인, 없거나 기본값은 1234 허용)
+    const validPin = found.pin || "1234";
+    if (childPin !== validPin && childPin !== "1234") {
+      alert("학생 PIN 번호(4자리)가 일치하지 않습니다.\n자녀가 설정한 4자리 PIN 번호를 확인해주세요. (테스트용 기본 PIN: 1234)");
+      return;
+    }
+
+    setMatchedChildPhoto(found);
+    setChildCommentInput(found.parent_comment || "");
+    setIsChildVerified(true);
+    alert(`🎉 [자녀 확인 완료]\n${found.studentGrade}학년 ${found.studentClass}반 ${found.studentNumber}번 (${found.nickname}) 학생의 출품작이 조회되었습니다!\n\n아래 '우리 아이 출품작' 카드에서 2단계 학부모 동의 및 따뜻한 응원 한마디를 남겨주세요 ❤️`);
+  };
+
+  // 2단계 학부모 동의 토글
+  const handleToggleParentConsent = () => {
+    if (!matchedChildPhoto) return;
+    const nextConsent = !matchedChildPhoto.parent_consent;
+    const updated = { ...matchedChildPhoto, parent_consent: nextConsent };
+    setMatchedChildPhoto(updated);
+    setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    alert(
+      nextConsent
+        ? "✅ [2단계 학부모 동의 완료]\n타 학교 학생들과 함께 보는 전국 교류관 대표 출품에 동의하셨습니다. (선생님 최종 검수 후 등재)"
+        : "학부모 동의가 해제되었습니다."
+    );
+  };
+
+  // 자녀 전용 응원 댓글 저장
+  const handleSaveChildComment = () => {
+    if (!matchedChildPhoto) return;
+    if (!childCommentInput.trim()) {
+      alert("응원 한마디를 입력해주세요.");
+      return;
+    }
+    const updated = { ...matchedChildPhoto, parent_comment: childCommentInput.trim() };
+    setMatchedChildPhoto(updated);
+    setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    alert(`💌 [응원 한마디 전송 완료!]\n"${childCommentInput.trim()}"\n\n이 응원글은 오직 우리 아이의 학생 화면에서만 따뜻하게 보여집니다 ❤️ (다른 친구들에게는 비공개)`);
+  };
+
   // 로컬스토리지에서 오늘 투표 여부 불러오기
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -186,6 +261,236 @@ export default function ParentsVotingPage() {
           <div className="shrink-0 hidden md:block">
             <span className="text-3xl">💌</span>
           </div>
+        </div>
+
+        {/* ================= 요구사항 10: 우리 아이 출품작 확인 & 학부모 동의 및 응원한마디 ================= */}
+        <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-5 shadow-[0_6px_0_0_#1E293B] space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">👨‍👩‍👧</span>
+              <h2 className="text-base sm:text-lg font-black text-slate-900">
+                우리 아이 출품작 확인 & 학부모 동의 (2단계)
+              </h2>
+            </div>
+            {isChildVerified && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsChildVerified(false);
+                  setMatchedChildPhoto(null);
+                }}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+              >
+                다른 자녀 조회하기
+              </button>
+            )}
+          </div>
+
+          {!isChildVerified ? (
+            /* 자녀 인증 폼 */
+            <form onSubmit={handleVerifyChild} className="space-y-4 bg-sky-50/70 p-4 rounded-2xl border border-sky-200">
+              <p className="text-xs text-slate-700 font-bold leading-relaxed">
+                휴대폰 번호와 자녀의 학년·반·번호 및 학생 PIN 번호를 입력하시면, <b>자녀의 작품을 확인하고 2단계 외부 공개 동의 및 자녀 전용 응원 한마디</b>를 남기실 수 있습니다.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {/* 학부모 휴대폰 번호 */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] font-black text-slate-700 flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-sky-600" />
+                    <span>학부모 휴대폰 번호</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="010-1234-5678"
+                    value={parentAuthPhone}
+                    onChange={(e) => setParentAuthPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                </div>
+
+                {/* 학년 */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700">자녀 학년</label>
+                  <select
+                    value={childGrade}
+                    onChange={(e) => setChildGrade(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((g) => (
+                      <option key={g} value={g}>{g}학년</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 반 */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700">반</label>
+                  <input
+                    type="number"
+                    placeholder="반"
+                    value={childClass}
+                    onChange={(e) => setChildClass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                </div>
+
+                {/* 번호 */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700">번호</label>
+                  <input
+                    type="number"
+                    placeholder="번호"
+                    value={childNumber}
+                    onChange={(e) => setChildNumber(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                </div>
+              </div>
+
+              {/* 학생 PIN 번호 & 조회 버튼 */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-[11px] font-black text-slate-700 whitespace-nowrap flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>학생 안심 PIN (4자리):</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    placeholder="1234"
+                    value={childPin}
+                    onChange={(e) => setChildPin(e.target.value)}
+                    className="w-24 px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-center text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    (기본값: 1234)
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs border border-sky-700 shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>우리 아이 작품 조회하기</span>
+                </button>
+              </div>
+            </form>
+          ) : matchedChildPhoto ? (
+            /* 자녀 인증 완료 시 노출되는 우리 아이 작품 카드 */
+            <div className="bg-gradient-to-br from-rose-50/60 via-amber-50/50 to-white rounded-2xl p-4 sm:p-5 border-2 border-rose-300 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-rose-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="bg-rose-500 text-white font-black text-xs px-2.5 py-1 rounded-xl shadow-xs">
+                    내 자녀 출품작
+                  </span>
+                  <span className="font-black text-sm text-slate-900">
+                    {matchedChildPhoto.studentGrade}학년 {matchedChildPhoto.studentClass}반 {matchedChildPhoto.studentNumber}번 ({matchedChildPhoto.nickname} 작가님)
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-bold">
+                  출품일: {matchedChildPhoto.submittedAt}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 사진 뷰어 */}
+                <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden border border-slate-300 flex items-center justify-center">
+                  <img
+                    src={matchedChildPhoto.imageUrl}
+                    alt={matchedChildPhoto.title}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                  {matchedChildPhoto.selectedFrame && (
+                    <div className="absolute top-2 right-2 bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg border border-slate-900">
+                      🏷️ {matchedChildPhoto.selectedFrame}
+                    </div>
+                  )}
+                </div>
+
+                {/* 작품 정보 & 2단계 동의 & 응원 한마디 */}
+                <div className="md:col-span-2 space-y-3.5 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">{matchedChildPhoto.title}</h3>
+                    {matchedChildPhoto.caption && (
+                      <p className="text-xs text-slate-700 font-medium mt-1 bg-white p-2.5 rounded-xl border border-rose-200">
+                        💬 &ldquo;{matchedChildPhoto.caption}&rdquo;
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 2단계 학부모 법정대리인 동의 (원스톱 체크) */}
+                  <div className={`p-3 rounded-2xl border transition-all ${
+                    matchedChildPhoto.parent_consent
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-950"
+                      : "bg-amber-50 border-amber-300 text-amber-950"
+                  }`}>
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        id="parent-consent-check"
+                        checked={!!matchedChildPhoto.parent_consent}
+                        onChange={handleToggleParentConsent}
+                        className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <label htmlFor="parent-consent-check" className="text-xs font-bold cursor-pointer select-none flex-1 leading-snug">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm">
+                            {matchedChildPhoto.parent_consent ? "✅ [2단계 학부모 동의 완료]" : "🔒 [2단계 학부모 동의 필요]"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          우리 아이의 사진을 타 학교와 교류하는 &lsquo;전국 학교 자랑하기 교류관&rsquo;에 외부 공개하는 것에 법정대리인으로서 동의합니다. (종이 동의서 대체)
+                        </p>
+                        <div className="text-[10px] text-slate-500 font-normal mt-1 flex flex-wrap items-center gap-2">
+                          <span className={matchedChildPhoto.student_consent ? "text-emerald-700 font-bold" : ""}>
+                            [1단계] 학생: {matchedChildPhoto.student_consent ? "동의 완료 ✓" : "대기"}
+                          </span>
+                          <span>•</span>
+                          <span className={matchedChildPhoto.parent_consent ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                            [2단계] 학부모: {matchedChildPhoto.parent_consent ? "동의 완료 ✓" : "미동의 (체크 필요)"}
+                          </span>
+                          <span>•</span>
+                          <span className={matchedChildPhoto.teacher_approval ? "text-emerald-700 font-bold" : ""}>
+                            [3단계] 교사: {matchedChildPhoto.teacher_approval ? "최종 승인 ✓" : "검수 대기"}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 자녀에게 남기는 응원 한마디 입력 폼 */}
+                  <div className="space-y-1.5 bg-white p-3 rounded-2xl border border-slate-200">
+                    <label className="text-xs font-black text-rose-700 flex items-center gap-1">
+                      <span>💌</span>
+                      <span>우리 아이에게 남기는 사랑의 응원 한마디:</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        maxLength={80}
+                        placeholder="예: 우리 OO이 언제 이렇게 멋진 사진을 찍었니! 최고야 사랑해 ❤️"
+                        value={childCommentInput}
+                        onChange={(e) => setChildCommentInput(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveChildComment}
+                        className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs shrink-0 cursor-pointer shadow-xs active:scale-95 transition-all"
+                      >
+                        응원 등록
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      * 이 응원 댓글은 오직 우리 아이의 학생 화면에만 1:1로 따뜻하게 전달됩니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* 출품작 카드 그리드 & 투표 인증 모달 영역 */}

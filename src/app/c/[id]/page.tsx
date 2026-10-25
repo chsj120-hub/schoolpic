@@ -123,8 +123,34 @@ export default function StudentChallengePage() {
   // 고화질 전체보기(라이트박스) 모달 상태 (짤림 방지 전체보기)
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoSubmission | null>(null);
 
-  const isSubmittingPeriod = challenge.status === "SUBMITTING";
-  const isVotingPeriod = challenge.status === "VOTING";
+  // 기간 판단 로직 (날짜 및 status 기반 하이브리드)
+  const today = new Date().toISOString().slice(0, 10);
+  const subStart = challenge.submissionStartDate || "2026-10-25";
+  const subEnd = challenge.submissionEndDate || "2026-10-31";
+  const voteStart = challenge.votingStartDate || "2026-11-01";
+  const voteEnd = challenge.votingEndDate || "2026-11-07";
+
+  const isDateSubmitting = today >= subStart && today <= subEnd;
+  const isDateVoting = today >= voteStart && today <= voteEnd;
+
+  // 출품 기간 및 투표 기간 활성화 여부
+  const isSubmittingActive =
+    challenge.status === "SUBMITTING" || (isDateSubmitting && challenge.status !== "ENDED");
+  const isVotingActive =
+    challenge.status === "VOTING" || (isDateVoting && challenge.status !== "ENDED");
+
+  // 1) 출품과 투표가 겹치는 기간 (병행)
+  const isOverlapPeriod = isSubmittingActive && isVotingActive;
+  // 2) 출품 전용 기간
+  const isSubmitOnly = isSubmittingActive && !isVotingActive;
+  // 3) 투표 전용 기간
+  const isVoteOnly = !isSubmittingActive && isVotingActive;
+  // 4) 행사 종료 여부
+  const isEnded = challenge.status === "ENDED" || (!isSubmittingActive && !isVotingActive && today > voteEnd);
+
+  // 하위 호환용
+  const isSubmittingPeriod = isSubmittingActive;
+  const isVotingPeriod = isVotingActive;
 
   // 로컬 스토리지에서 학생 세션 불러오기
   useEffect(() => {
@@ -560,165 +586,314 @@ export default function StudentChallengePage() {
           </div>
         </section>
 
-        {/* 5. 출품작 리스트 (갤러리 아케이드 스타일) */}
-        <main className="px-4 flex-1 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5 font-extrabold text-sm text-slate-800">
-              <Flame className="w-4 h-4 text-amber-500 animate-bounce" />
-              <span>{isVotingPeriod ? "전교생 출품작 투표 갤러리" : "현재 접수된 작품 미리보기"}</span>
-            </div>
-            <span className="text-[11px] font-bold text-slate-400">
-              {isVotingPeriod ? "1인 1일 3표" : "접수 기간"}
-            </span>
-          </div>
+        {/* 5. 내 출품작 관리 카드 (1인 1작품 전용 & 1단계 학생 동의 & 1:1 비밀 피드백함) */}
+        <section className="px-4 pb-3">
+          {myExistingSubmission ? (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-400 rounded-3xl p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="bg-amber-500 text-slate-950 font-black text-xs px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1">
+                  📸 내가 출품한 작품 (접수 완료)
+                </span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {myExistingSubmission.studentGrade}학년 {myExistingSubmission.studentClass}반 {myExistingSubmission.studentNumber}번 {myExistingSubmission.nickname}
+                </span>
+              </div>
 
-          {submissions.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 p-6 space-y-3">
-              <Camera className="w-10 h-10 text-slate-300 mx-auto" />
-              <p className="text-xs text-slate-500 font-bold">아직 등록된 사진이 없습니다.<br />가장 먼저 첫 번째 사진을 출품해보세요!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {submissions.map((item, idx) => {
-                const isVoted = !!votedMap[item.id];
-                return (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-3xl border-2 border-slate-200/90 overflow-hidden shadow-sm hover:shadow-arcade hover:border-amber-300 transition-all duration-200"
-                  >
-                    {/* 사진 프레임 (짤림 방지: aspect-[4/3] 배경에 원본 비율 전체 표시 + 터치 시 고해상도 전체보기) */}
-                    <div 
-                      onClick={() => setLightboxPhoto(item)}
-                      className="relative aspect-[4/3] bg-slate-950 flex items-center justify-center overflow-hidden cursor-pointer group"
-                    >
-                      <img
-                        src={item.imageUrl}
-                        alt={item.title}
-                        className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-102"
-                      />
-                      {/* 순위 뱃지 */}
-                      <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-xs text-white text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-sm">
-                        <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                        <span>#{idx + 1}</span>
-                      </div>
+              {/* 내 사진 미리보기 */}
+              <div
+                onClick={() => setLightboxPhoto(myExistingSubmission)}
+                className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden cursor-pointer group flex items-center justify-center border border-amber-300"
+              >
+                <img
+                  src={myExistingSubmission.imageUrl}
+                  alt={myExistingSubmission.title}
+                  className="max-w-full max-h-full object-contain group-hover:scale-102 transition-transform"
+                />
+                {myExistingSubmission.selectedFrame && (
+                  <div className="absolute top-2.5 right-2.5 bg-amber-400/90 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg border border-slate-900 shadow-xs">
+                    🏷️ {myExistingSubmission.selectedFrame}
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <span className="bg-black/75 text-white text-xs font-black px-3 py-1.5 rounded-full">
+                    🔍 터치하여 크게 보기
+                  </span>
+                </div>
+              </div>
 
-                      {/* 적용된 전용 스티커 프레임 라벨 */}
-                      {item.selectedFrame && (
-                        <div className="absolute top-3 right-3 bg-amber-400/90 backdrop-blur-xs text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg border border-slate-900 shadow-xs">
-                          🏷️ {item.selectedFrame}
-                        </div>
-                      )}
+              {/* 작품 설명 */}
+              <div>
+                <h4 className="font-black text-sm text-slate-900">{myExistingSubmission.title}</h4>
+                {myExistingSubmission.caption && (
+                  <p className="text-xs text-slate-700 font-maruburi mt-1 bg-white/70 p-2 rounded-xl border border-amber-200">
+                    &ldquo;{myExistingSubmission.caption}&rdquo;
+                  </p>
+                )}
+              </div>
 
-                      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded-lg">
-                        {item.studentGrade}학년 {item.studentClass}반 {item.studentNumber}번 {item.nickname}
-                      </div>
-
-                      {/* 클릭하여 전체보기 힌트 배너 */}
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
-                        <span className="bg-black/75 text-white text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-xs border border-white/20 shadow-lg">
-                          🔍 클릭하여 전체보기
+              {/* 1단계 학생 동의 체크박스 (오직 내 작품에서만 체크 가능!) */}
+              <div className={`rounded-2xl p-3 border transition-all ${
+                myExistingSubmission.student_consent
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-950"
+                  : "bg-white border-sky-300 text-slate-800"
+              }`}>
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id={`optin-mine-${myExistingSubmission.id}`}
+                    checked={!!myExistingSubmission.student_consent}
+                    onChange={() => handleToggleStudentConsent(myExistingSubmission.id)}
+                    className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <label htmlFor={`optin-mine-${myExistingSubmission.id}`} className="text-xs font-bold cursor-pointer select-none leading-tight flex-1">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="font-black text-sky-900 text-xs flex items-center gap-1">
+                        🌐 1단계: 전국 학교 자랑하기 외부 출품 동의
+                      </span>
+                      {myExistingSubmission.is_public_shared && (
+                        <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">
+                          전국 교류관 등재됨 ✨
                         </span>
-                      </div>
+                      )}
                     </div>
+                    <span className="text-[11px] text-slate-600 block">
+                      타 학교 친구들에게 내 작품을 자랑할까요? 학생 본인의 외부 공개 동의입니다.
+                    </span>
+                    <div className="text-[10px] text-slate-500 font-normal mt-1 flex flex-wrap items-center gap-2">
+                      <span className={myExistingSubmission.student_consent ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                        [1단계 학생]: {myExistingSubmission.student_consent ? "동의 완료 ✓" : "동의 대기 (체크 필요)"}
+                      </span>
+                      <span>•</span>
+                      <span className={myExistingSubmission.parent_consent ? "text-emerald-700 font-bold" : "text-slate-500"}>
+                        [2단계 학부모]: {myExistingSubmission.parent_consent ? (myExistingSubmission.paper_parent_consent ? "동의 완료 (서면 종이) ✓" : "동의 완료 (모바일) ✓") : "확인 대기 중"}
+                      </span>
+                      <span>•</span>
+                      <span className={myExistingSubmission.teacher_approval ? "text-emerald-700 font-bold" : "text-slate-500"}>
+                        [3단계 교사]: {myExistingSubmission.teacher_approval ? "최종 승인 완료 ✨" : "검수 대기 중"}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
 
-                    {/* 카드 하단 정보 & 투표 인터랙션 */}
-                    <div className="p-4 space-y-2.5">
-                      <div>
-                        <h4 className="font-black text-sm text-slate-900 line-clamp-1">
-                          {item.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-                          출품일: {item.submittedAt}
-                        </p>
+              {/* 1:1 비밀 응원함 (부모님 응원 한마디 & 선생님 칭찬 코멘트 - 출품자 본인에게만 표시) */}
+              <div className="space-y-2 pt-1 border-t border-amber-200/80">
+                <div className="bg-white/80 rounded-2xl p-2.5 border border-amber-200 text-xs space-y-1">
+                  <div className="flex items-center gap-1 text-rose-600 font-black">
+                    <span>💌</span>
+                    <span>우리 부모님의 사랑 가득 응원:</span>
+                  </div>
+                  {myExistingSubmission.parent_comment ? (
+                    <p className="text-slate-800 font-medium pl-4 text-xs font-maruburi">
+                      &ldquo;{myExistingSubmission.parent_comment}&rdquo;
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 text-[11px] pl-4">
+                      아직 등록된 응원글이 없습니다. (학부모 페이지에서 자녀 확인 후 따뜻한 응원을 남기실 수 있어요)
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-white/80 rounded-2xl p-2.5 border border-sky-200 text-xs space-y-1">
+                  <div className="flex items-center gap-1 text-sky-700 font-black">
+                    <span>🧑‍🏫</span>
+                    <span>선생님의 칭찬 & 지도 피드백:</span>
+                  </div>
+                  {myExistingSubmission.teacher_comment ? (
+                    <p className="text-slate-800 font-medium pl-4 text-xs font-maruburi">
+                      &ldquo;{myExistingSubmission.teacher_comment}&rdquo;
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 text-[11px] pl-4">
+                      선생님께서 작품을 확인하고 계십니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* 접수 기간 중 사진 교체 버튼 */}
+              {isSubmittingPeriod && (
+                <button
+                  type="button"
+                  onClick={handleOpenComposer}
+                  className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs border border-amber-500 shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>내 출품 사진 다시 찍기 / 교체하기</span>
+                </button>
+              )}
+            </div>
+          ) : isSubmittingPeriod ? (
+            <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-3xl p-5 text-center space-y-3">
+              <Camera className="w-10 h-10 text-amber-500 mx-auto" />
+              <div>
+                <h4 className="text-sm font-black text-slate-800">아직 출품한 사진이 없습니다</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  선생님이 열어주신 테마 규칙에 맞춰 나만의 멋진 한 컷을 촬영해보세요! (1인 1작품)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenComposer}
+                className="py-3 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs border-2 border-amber-500 shadow-arcade-amber active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Camera className="w-4 h-4" />
+                <span>지금 바로 사진 촬영 및 출품하기</span>
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        {/* 6. 메인 본문: 기간별 분기 (접수 기간 블라인드 VS 투표 기간 전교생 갤러리) */}
+        {isSubmitOnly ? (
+          /* [접수 전용 기간]: 전교생 갤러리 블라인드(숨김) 처리 & 접수 현황 안내 */
+          <main className="px-4 flex-1 space-y-4">
+            <div className="bg-slate-50 rounded-3xl border-2 border-slate-200 p-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-sky-100 border border-sky-300 flex items-center justify-center mx-auto text-2xl">
+                🔒
+              </div>
+              <div className="space-y-1.5">
+                <span className="inline-block bg-sky-100 text-sky-800 font-black text-[11px] px-2.5 py-1 rounded-full border border-sky-300">
+                  공정한 블라인드 심사 원칙
+                </span>
+                <h3 className="font-black text-base text-slate-900">
+                  현재는 작품 접수 기간입니다
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+                  친구들의 인기투표 왜곡 및 쏠림을 방지하기 위해, 출품작은 접수 기간 동안 <b>비공개(블라인드)</b>로 안전하게 보호됩니다.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-3 border border-slate-200 text-xs font-bold text-slate-700 flex items-center justify-around">
+                <div>
+                  <span className="text-[10px] text-slate-400 block">현재 접수 현황</span>
+                  <span className="text-sm font-black text-amber-600">{submissions.length}명 참여 중 🚀</span>
+                </div>
+                <div className="h-6 w-px bg-slate-200" />
+                <div>
+                  <span className="text-[10px] text-slate-400 block">전교 투표 오픈</span>
+                  <span className="text-sm font-black text-sky-600">{challenge.votingStartDate || "투표일"} 오픈 예정 🗳️</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                투표 기간이 시작되면 모든 친구들의 멋진 작품이 일제히 공개되어 자유롭게 공감 투표를 진행할 수 있습니다.
+              </p>
+            </div>
+          </main>
+        ) : (
+          /* [투표 기간 또는 병행 기간]: 전교생 갤러리 및 투표 UI 노출 */
+          <main className="px-4 flex-1 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5 font-extrabold text-sm text-slate-800">
+                <Flame className="w-4 h-4 text-amber-500 animate-bounce" />
+                <span>전교생 출품작 투표 갤러리</span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-400">
+                1인 1일 3표 (투표 진행 중)
+              </span>
+            </div>
+
+            {submissions.length === 0 ? (
+              <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 p-6 space-y-3">
+                <Camera className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-xs text-slate-500 font-bold">아직 등록된 사진이 없습니다.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {submissions.map((item, idx) => {
+                  const isVoted = !!votedMap[item.id];
+                  return (
+                    <div
+                      key={item.id}
+                      className="bg-white rounded-3xl border-2 border-slate-200/90 overflow-hidden shadow-sm hover:shadow-arcade hover:border-amber-300 transition-all duration-200"
+                    >
+                      {/* 사진 프레임 (짤림 방지: aspect-[4/3] 배경에 원본 비율 전체 표시 + 터치 시 고해상도 전체보기) */}
+                      <div 
+                        onClick={() => setLightboxPhoto(item)}
+                        className="relative aspect-[4/3] bg-slate-950 flex items-center justify-center overflow-hidden cursor-pointer group"
+                      >
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-102"
+                        />
+                        {/* 순위 뱃지 */}
+                        <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-xs text-white text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-sm">
+                          <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                          <span>#{idx + 1}</span>
+                        </div>
+
+                        {/* 적용된 전용 스티커 프레임 라벨 */}
+                        {item.selectedFrame && (
+                          <div className="absolute top-3 right-3 bg-amber-400/90 backdrop-blur-xs text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg border border-slate-900 shadow-xs">
+                            🏷️ {item.selectedFrame}
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded-lg">
+                          {item.studentGrade}학년 {item.studentClass}반 {item.studentNumber}번 {item.nickname}
+                        </div>
+
+                        {/* 클릭하여 전체보기 힌트 배너 */}
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                          <span className="bg-black/75 text-white text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-xs border border-white/20 shadow-lg">
+                            🔍 클릭하여 전체보기
+                          </span>
+                        </div>
                       </div>
 
-                      {/* 30자 이내 작품 설명 (작가 노트) 말풍선 - 마루 부리(Serif) 적용 */}
-                      {item.caption && (
-                        <div className="bg-amber-50/80 rounded-2xl p-2.5 border border-amber-200/90 text-xs text-amber-950 flex items-start gap-1.5 shadow-2xs">
-                          <span className="text-amber-600 font-mono text-sm leading-none select-none mt-0.5">💬</span>
-                          <p className="line-clamp-2 leading-relaxed font-maruburi text-xs text-slate-900 tracking-tight">
-                            &ldquo;{item.caption}&rdquo;
+                      {/* 카드 하단 정보 & 투표 인터랙션 (다른 학생 작품에는 1단계 학생 동의 체크박스가 없음!) */}
+                      <div className="p-4 space-y-2.5">
+                        <div>
+                          <h4 className="font-black text-sm text-slate-900 line-clamp-1">
+                            {item.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                            출품일: {item.submittedAt}
                           </p>
                         </div>
-                      )}
 
-                      {/* 출품 시 부착된 스티커 뱃지 목록 */}
-                      {item.appliedStickers && item.appliedStickers.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {item.appliedStickers.map((stk, sIdx) => (
-                            <span
-                              key={stk.id || `stk-${sIdx}`}
-                              style={{ backgroundColor: stk.bg, color: stk.color }}
-                              className="text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs border border-black/10"
-                            >
-                              {stk.text}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                        {/* 30자 작가 노트 */}
+                        {item.caption && (
+                          <div className="bg-amber-50/80 rounded-2xl p-2.5 border border-amber-200/90 text-xs text-amber-950 flex items-start gap-1.5 shadow-2xs">
+                            <span className="text-amber-600 font-mono text-sm leading-none select-none mt-0.5">💬</span>
+                            <p className="line-clamp-2 leading-relaxed font-maruburi text-xs text-slate-900 tracking-tight">
+                              &ldquo;{item.caption}&rdquo;
+                            </p>
+                          </div>
+                        )}
 
-                      {/* 1단계 개인정보·초상권 안심 승인 (학생 자발적 외부 공개 동의 Student Opt-in) */}
-                      <div className={`rounded-2xl p-3 border transition-all ${
-                        item.student_consent
-                          ? "bg-emerald-50/90 border-emerald-300 text-emerald-950"
-                          : "bg-sky-50/80 border-sky-200 text-slate-800"
-                      }`}>
-                        <div className="flex items-start gap-2">
-                          <input
-                            type="checkbox"
-                            id={`optin-${item.id}`}
-                            checked={!!item.student_consent}
-                            onChange={() => handleToggleStudentConsent(item.id)}
-                            className="mt-0.5 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
-                          />
-                          <label htmlFor={`optin-${item.id}`} className="text-xs font-bold cursor-pointer select-none leading-tight flex-1">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="font-black text-sky-900 text-[11px] flex items-center gap-1">
-                                🌐 1단계: 전국 학교 자랑하기 출품 동의
+                        {/* 출품 시 부착된 스티커 뱃지 목록 */}
+                        {item.appliedStickers && item.appliedStickers.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {item.appliedStickers.map((stk, sIdx) => (
+                              <span
+                                key={stk.id || `stk-${sIdx}`}
+                                style={{ backgroundColor: stk.bg, color: stk.color }}
+                                className="text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs border border-black/10"
+                              >
+                                {stk.text}
                               </span>
-                              {item.is_public_shared && (
-                                <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">
-                                  전국 교류관 등재됨 ✨
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-700 block">
-                              타 학교 친구들에게 내 작품을 자랑할까요? 외부 공개에 동의합니다.
-                            </span>
-                            <div className="text-[10px] text-slate-500 font-normal mt-1 flex flex-wrap items-center gap-2">
-                              <span className={item.student_consent ? "text-emerald-700 font-bold" : ""}>
-                                [1단계] 학생: {item.student_consent ? "동의 완료 ✓" : "대기"}
-                              </span>
-                              <span>•</span>
-                              <span className={item.parent_consent ? "text-emerald-700 font-bold" : ""}>
-                                [2단계] 학부모: {item.parent_consent ? "동의 완료 ✓" : "대기"}
-                              </span>
-                              <span>•</span>
-                              <span className={item.teacher_approval ? "text-emerald-700 font-bold" : ""}>
-                                [3단계] 교사: {item.teacher_approval ? "최종 승인 ✓" : "검수 대기"}
-                              </span>
-                            </div>
-                          </label>
-                        </div>
-                      </div>
+                            ))}
+                          </div>
+                        )}
 
-                      {/* 요구사항 5: 투표 획득 개수 숨김 & 내가 투표한 사진만 표기 */}
-                      <div className="flex items-center justify-between pt-1">
-                        <div>
-                          {isVoted ? (
-                            <div className="flex items-center gap-1.5 bg-rose-50 text-rose-700 px-3 py-1 rounded-xl border border-rose-200 text-xs font-black animate-in fade-in">
-                              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
-                              <span>내가 투표한 작품 ✨</span>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] font-bold text-slate-400">
-                              {isVotingPeriod ? "마음에 드는 사진에 투표하세요!" : "접수 진행 중"}
-                            </span>
-                          )}
-                        </div>
+                        {/* 투표 인터랙션 버튼 (투표 획득 수는 비공개, 내 투표 여부만 표기) */}
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            {isVoted ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 text-rose-700 px-3 py-1 rounded-xl border border-rose-200 text-xs font-black animate-in fade-in">
+                                <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                                <span>내가 투표한 작품 ✨</span>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] font-bold text-slate-400">
+                                마음에 드는 사진에 투표하세요!
+                              </span>
+                            )}
+                          </div>
 
-                        {/* 투표 버튼 */}
-                        {isVotingPeriod ? (
                           <button
                             onClick={() => handleVote(item.id)}
                             className={`px-4 py-2 rounded-2xl text-xs font-black border-2 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer ${
@@ -730,19 +905,15 @@ export default function StudentChallengePage() {
                             <Heart className={`w-4 h-4 ${isVoted ? "fill-amber-950 text-amber-950" : "text-amber-500"}`} />
                             <span>{isVoted ? "투표 취소" : "투표하기"}</span>
                           </button>
-                        ) : (
-                          <span className="text-[11px] font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-xl border border-sky-200">
-                            접수 중 (투표 대기)
-                          </span>
-                        )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </main>
+                  );
+                })}
+              </div>
+            )}
+          </main>
+        )}
 
         {/* 6. 하단 고정 액션 바 */}
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white/95 backdrop-blur-md border-t-2 border-slate-200 p-3.5 z-40 shadow-lg">

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { NATIONAL_EXCHANGE_SUBMISSIONS } from "@/lib/constants";
 import { PhotoSubmission } from "@/types";
-import { Footer } from "@/components/Footer";
 import {
   Globe,
   Trophy,
@@ -531,6 +530,25 @@ export default function NationalExchangePage() {
                       className="max-w-full max-h-full object-contain transition-transform duration-300 hover:scale-102"
                     />
 
+                    {/* 초상권 보호 모드: 귀여운 스티커 또는 소프트 블러 오버레이 */}
+                    {item.face_privacy_mode === "emoji" && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="text-4xl filter drop-shadow-md animate-pulse">😊</span>
+                        <span className="absolute bottom-10 bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full border border-slate-900 shadow-xs">
+                          초상권 보호 스티커 ✨
+                        </span>
+                      </div>
+                    )}
+                    {item.face_privacy_mode === "blur" && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-24 h-24 rounded-full backdrop-blur-md bg-white/10 border border-white/30 flex items-center justify-center shadow-lg">
+                          <span className="text-[10px] font-black text-white bg-black/60 px-2 py-0.5 rounded-full">
+                            소프트 블러
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 수상 뱃지 (특별상 또는 순위) */}
                     <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-xs text-amber-300 text-[11px] font-black px-2.5 py-1 rounded-xl border border-amber-400/40 shadow-sm flex items-center gap-1">
                       <Trophy className="w-3.5 h-3.5 text-amber-400" />
@@ -781,8 +799,6 @@ export default function NationalExchangePage() {
 
         </div>
       )}
-
-      <Footer />
 
     </div>
   );

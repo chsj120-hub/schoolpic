@@ -57,6 +57,7 @@ export interface PhotoSubmission {
   studentClass: number;
   studentNumber: number;
   nickname: string; // 실명 금지!
+  pin?: string; // 학생 확인용 4자리 안심 PIN 번호 (학부모 동의/본인 확인용)
   title: string;
   caption?: string; // 30자 이내 작품 설명(작가 노트)
   imageUrl: string;
@@ -84,6 +85,11 @@ export interface PhotoSubmission {
   // 특별상 수여 기능 (교사가 직접 지정하는 특별상)
   special_award_title?: string; // 예: "아이디어 뱅크 특별상"
   special_award_reason?: string; // 생기부 연계 수여 사유
+  // 학부모 및 교사 비공개 코멘트 (출품자 본인만 열람 가능)
+  parent_comment?: string; // 학부모 응원 댓글 (자녀에게만 작성)
+  teacher_comment?: string; // 교사 피드백/칭찬 코멘트 (출품자에게만 작성)
+  paper_parent_consent?: boolean; // 교사가 종이 동의서로 수동 확인한 서면 동의
+  face_privacy_mode?: "none" | "emoji" | "blur"; // 전국 교류관 얼굴 가리기 보호 모드
   // 전국 교류관 선플·클린 인터랙션 (긍정 응원 스탬프)
   cheerStamps?: {
     fire: number; // 🔥 멋져요!
