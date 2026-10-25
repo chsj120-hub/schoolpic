@@ -154,9 +154,6 @@ export default function StudentChallengePage() {
 
   // 출품작 목록: 오직 현재 사진전(challengeId)에 출품된 작품만 엄격 격리 로드!
   const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
-    if (challengeId === "challenge-1") {
-      return SAMPLE_SUBMISSIONS.filter((s) => s.challengeId === "challenge-1");
-    }
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem(`schoolpick_submissions_${challengeId}`);
@@ -179,7 +176,7 @@ export default function StudentChallengePage() {
           if (typeof window !== "undefined") {
             localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
           }
-        } else if (challengeId !== "challenge-1") {
+        } else {
           // 신규 개설된 사진전은 출품작 0건 빈 갤러리 유지
           setSubmissions([]);
         }

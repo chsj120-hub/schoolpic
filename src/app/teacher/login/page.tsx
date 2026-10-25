@@ -72,14 +72,14 @@ export default function TeacherAuthPage() {
   const [signupStep, setSignupStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1: 이메일 인증
-  const [signupEmail, setSignupEmail] = useState("teacher_lee@korea.kr");
+  const [signupEmail, setSignupEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [step1Error, setStep1Error] = useState("");
 
   // Step 2: 학교명 자동완성 검색 (나이스 NEIS OpenAPI 실시간 연동)
-  const [searchQuery, setSearchQuery] = useState("한재");
-  const [searchResults, setSearchResults] = useState<SchoolRecord[]>(() => searchSchools("한재"));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SchoolRecord[]>([]);
   const [isSearchingSchools, setIsSearchingSchools] = useState<boolean>(false);
   const [searchSource, setSearchSource] = useState<string>("LOCAL_FALLBACK");
   const [selectedSchool, setSelectedSchool] = useState<SchoolRecord | null>(null);
@@ -119,10 +119,10 @@ export default function TeacherAuthPage() {
   const [isExistingSchool, setIsExistingSchool] = useState<boolean>(false);
 
   // Step 4: 비밀번호 및 프로필 지정
-  const [teacherName, setTeacherName] = useState("이하늘 선생님");
-  const [newPassword, setNewPassword] = useState("pass1234");
-  const [confirmPassword, setConfirmPassword] = useState("pass1234");
-  const [teacherRole, setTeacherRole] = useState("5학년 2반 담임");
+  const [teacherName, setTeacherName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [teacherRole, setTeacherRole] = useState("");
   const [step4Error, setStep4Error] = useState("");
 
   // -------------------------------------------------------------

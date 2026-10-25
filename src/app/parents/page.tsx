@@ -71,30 +71,54 @@ function ParentsVotingContent() {
         .catch(() => {});
     }
   }, [challengeId, searchParams]);
-  const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
-    return SAMPLE_SUBMISSIONS.map((sub, idx) => ({
-      ...sub,
-      parentVotes: sub.parentVotes || (idx === 0 ? 128 : idx === 1 ? 96 : 84),
-    }));
-  });
+  const [submissions, setSubmissions] = useState<PhotoSubmission[]>([]);
+
+  // 실시간 출품작 동기화 (로컬 저장소 및 서버 API 연동)
+  useEffect(() => {
+    async function loadParentsSubmissions() {
+      let loaded: PhotoSubmission[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(`schoolpick_submissions_${challengeId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) loaded = parsed;
+          }
+        } catch (e) {}
+      }
+
+      try {
+        const res = await fetch(`/api/submissions?exhibitionId=${challengeId}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.submissions)) {
+          const dbIds = new Set(loaded.map((s) => s.id));
+          const newItems = data.submissions.filter((s: any) => !dbIds.has(s.id));
+          loaded = [...loaded, ...newItems];
+        }
+      } catch (e) {}
+
+      setSubmissions(loaded);
+    }
+    loadParentsSubmissions();
+  }, [challengeId]);
 
   // 학부모 투표 상태 (1일 1표 제한)
   const [hasVotedToday, setHasVotedToday] = useState<boolean>(false);
   const [votedPhotoId, setVotedPhotoId] = useState<string | null>(null);
 
   // 모달 상태: 휴대폰 번호 본인확인 모달
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [selectedPhotoForVote, setSelectedPhotoForVote] = useState<PhotoSubmission | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>("");
 
   // 기타 상단 모달 상태
   const [activeInfoModal, setActiveInfoModal] = useState<"guide" | "notice" | "myStatus" | null>(null);
 
   // ================= 요구사항 10: 학부모 자녀 확인 & 2단계 동의 & 응원댓글 상태 =================
-  const [childGrade, setChildGrade] = useState<string>("5");
-  const [childClass, setChildClass] = useState<string>("2");
-  const [childNumber, setChildNumber] = useState<string>("14");
-  const [childPin, setChildPin] = useState<string>("1234");
+  const [childGrade, setChildGrade] = useState<string>("");
+  const [childClass, setChildClass] = useState<string>("");
+  const [childNumber, setChildNumber] = useState<string>("");
+  const [childPin, setChildPin] = useState<string>("");
   const [parentAuthPhone, setParentAuthPhone] = useState<string>("");
   const [isChildVerified, setIsChildVerified] = useState<boolean>(false);
   const [matchedChildPhoto, setMatchedChildPhoto] = useState<PhotoSubmission | null>(null);
@@ -543,7 +567,21 @@ function ParentsVotingContent() {
         </div>
 
         {/* 출품작 카드 그리드 & 투표 인증 모달 영역 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {submissions.length === 0 ? (
+          <div className="bg-white rounded-3xl border-[2.5px] border-slate-900 p-8 sm:p-14 text-center shadow-[0_6px_0_0_#1E293B] space-y-3">
+            <div className="w-16 h-16 bg-amber-100 rounded-3xl border-2 border-slate-900 mx-auto flex items-center justify-center text-3xl shadow-inner">
+              📸
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-slate-900">
+              아직 등록된 학생 출품작이 없습니다
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-bold leading-relaxed max-w-md mx-auto">
+              학생들이 사진을 촬영하여 출품하면 이곳에 자동으로 실시간 표시됩니다.<br />
+              잠시 후 다시 방문해주세요!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {submissions.map((photo, idx) => {
             const isThisVoted = votedPhotoId === photo.id;
 
@@ -629,6 +667,7 @@ function ParentsVotingContent() {
             );
           })}
         </div>
+        )}
 
         {/* 3. 하단 안내사항 박스 (첨부 이미지 반영) */}
         <div className="bg-white rounded-3xl border-[2px] border-sky-200 p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">

@@ -22,11 +22,11 @@ import { findStudent, saveOrUpdateStudent, StudentAccount } from "@/lib/studentS
 export default function StudentOnboardingPage() {
   const router = useRouter();
   
-  // 온보딩 입력값 (기본값 설정)
-  const [schoolCode, setSchoolCode] = useState("KOR-402");
-  const [grade, setGrade] = useState("5");
-  const [classNum, setClassNum] = useState("2");
-  const [studentNum, setStudentNum] = useState("14");
+  // 온보딩 입력값 (초기 빈 상태)
+  const [schoolCode, setSchoolCode] = useState("");
+  const [grade, setGrade] = useState("");
+  const [classNum, setClassNum] = useState("");
+  const [studentNum, setStudentNum] = useState("");
   const [pin, setPin] = useState("");
   const [nickname, setNickname] = useState("");
   const [errorMessage, setErrorMessage] = useState("");

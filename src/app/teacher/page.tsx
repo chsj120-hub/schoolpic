@@ -69,11 +69,11 @@ export default function TeacherAdminPage() {
   const router = useRouter();
 
   // 로그인/가입된 교사 및 학교 정보 연동 (다중 교사 시스템)
-  const [schoolName, setSchoolName] = useState("한재초등학교");
-  const [schoolCode, setSchoolCode] = useState("JNE-3012");
-  const [teacherName, setTeacherName] = useState("김선생님");
+  const [schoolName, setSchoolName] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
+  const [teacherName, setTeacherName] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
-  const [teacherRole, setTeacherRole] = useState("담임교사");
+  const [teacherRole, setTeacherRole] = useState("");
   const [isDevAdmin, setIsDevAdmin] = useState(false);
 
   // 운영 중인 사진전 목록 (신규 가입 학교는 초기 개설 사진전 없음 [])
