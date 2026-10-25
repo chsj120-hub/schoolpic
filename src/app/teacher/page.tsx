@@ -218,6 +218,8 @@ export default function TeacherAdminPage() {
   const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
   const [isAwardResultDraftModalOpen, setIsAwardResultDraftModalOpen] = useState(false);
   const [awardTargetSubmissionId, setAwardTargetSubmissionId] = useState<string>(SAMPLE_SUBMISSIONS[0].id);
+  // 시상 명단 10명 단위 페이지네이션 상태
+  const [awardPage, setAwardPage] = useState<number>(1);
 
   // ================= 요구사항 10: 교사 코멘트 & 서면 동의 수동 체크 & 얼굴 가리기 =================
   const [editingTeacherComments, setEditingTeacherComments] = useState<Record<string, string>>({});
@@ -628,29 +630,47 @@ export default function TeacherAdminPage() {
     setIsAwardResultDraftModalOpen(true);
   };
 
-  // 시상용 최종 결과표 CSV 다운로드 (학생, 교직원, 학부모 투표 분리 집계 반영)
+  // 시상용 최종 결과표 CSV 다운로드 (총합 득표 순위 자동 정렬, 선생님 코멘트 & 학부모 응원 멘트 포함)
   const handleDownloadCsv = () => {
     if (!currentChallenge) {
       showToast("⚠️ 내보낼 사진전이 없습니다.", undefined, "warning");
       return;
     }
+
+    // 총합 득표(votes) 순으로 엄격 정렬
+    const sorted = [...submissions].sort((a, b) => b.votes - a.votes);
+
     const rows = [
-      ["순위", "시상구분", "학년", "반", "번호", "작가닉네임", "작품제목", "총합득표", "학생투표", "교직원투표", "학부모공감표", "작가노트(30자)", "생기부세특문구"],
-      ...submissions.map((s, idx) => [
-        idx + 1,
-        s.special_award_title ? `[특별상] ${s.special_award_title}` : idx === 0 ? "대상" : idx === 1 ? "최우수" : idx === 2 ? "우수" : "참가상",
-        s.studentGrade,
-        s.studentClass,
-        s.studentNumber,
-        s.nickname,
-        `"${s.title.replace(/"/g, '""')}"`,
-        s.votes,
-        s.studentVotes || 0,
-        s.teacherVotes || 0,
-        s.parentVotes || 0,
-        `"${(s.caption || "").replace(/"/g, '""')}"`,
-        `"${(s.special_award_reason || currentChallenge.teacherTips || "").replace(/"/g, '""')}"`,
-      ]),
+      ["순위", "시상구분", "학년", "반", "번호", "작가닉네임", "작품제목", "총합득표", "학생투표", "교직원투표", "학부모공감표", "작가노트(30자)", "선생님코멘트", "학부모응원멘트"],
+      ...sorted.map((s, idx) => {
+        const rank = idx + 1;
+        const awardType = s.special_award_title
+          ? `[특별상] ${s.special_award_title}`
+          : rank === 1
+          ? "1위 (최다 득표)"
+          : rank === 2
+          ? "2위 (우수)"
+          : rank === 3
+          ? "3위 (장려)"
+          : `${rank}위 (참가)`;
+
+        return [
+          rank,
+          `"${awardType.replace(/"/g, '""')}"`,
+          s.studentGrade,
+          s.studentClass,
+          s.studentNumber,
+          `"${s.nickname.replace(/"/g, '""')}"`,
+          `"${s.title.replace(/"/g, '""')}"`,
+          s.votes,
+          s.studentVotes || 0,
+          s.teacherVotes || 0,
+          s.parentVotes || 0,
+          `"${(s.caption || "").replace(/"/g, '""')}"`,
+          `"${(s.teacher_comment || "").replace(/"/g, '""')}"`,
+          `"${(s.parent_comment || "").replace(/"/g, '""')}"`,
+        ];
+      }),
     ];
 
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map((e) => e.join(",")).join("\n");
@@ -1803,58 +1823,161 @@ export default function TeacherAdminPage() {
                 </div>
               </div>
 
-              {/* 시상 명단 테이블 (학생/교직원/학부모 분리 집계 반영) */}
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
-                    <tr>
-                      <th className="p-3">순위</th>
-                      <th className="p-3">시상 구분 (특별상 포함)</th>
-                      <th className="p-3">학번</th>
-                      <th className="p-3">작가 닉네임</th>
-                      <th className="p-3">작품 제목</th>
-                      <th className="p-3 text-center">총합 득표</th>
-                      <th className="p-3 text-center">학생 투표</th>
-                      <th className="p-3 text-center">교직원 투표</th>
-                      <th className="p-3 text-center">학부모 공감</th>
-                      <th className="p-3">생기부 세특 기재 내용</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {submissions.map((sub, idx) => (
-                      <tr key={sub.id} className="hover:bg-amber-50/50">
-                        <td className="p-3 font-black text-amber-600">
-                          {idx === 0 ? "🥇 대상" : idx === 1 ? "🥈 최우수" : idx === 2 ? "🥉 우수" : `${idx + 1}위`}
-                        </td>
-                        <td className="p-3">
-                          {sub.special_award_title ? (
-                            <span className="bg-amber-100 text-amber-950 border border-amber-400 px-2.5 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1 shadow-2xs">
-                              <Gift className="w-3.5 h-3.5 text-amber-600" />
-                              <span>{sub.special_award_title}</span>
-                            </span>
+              {/* 시상 명단 테이블: 총합 득표 순위 정렬 & 10명 단위 페이지네이션 */}
+              {(() => {
+                const sortedSubmissions = [...submissions].sort((a, b) => b.votes - a.votes);
+                const PAGE_SIZE = 10;
+                const totalPages = Math.ceil(sortedSubmissions.length / PAGE_SIZE) || 1;
+                const currentPage = Math.min(Math.max(1, awardPage), totalPages);
+                const startIndex = (currentPage - 1) * PAGE_SIZE;
+                const paginatedSubmissions = sortedSubmissions.slice(startIndex, startIndex + PAGE_SIZE);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                          <tr>
+                            <th className="p-3 text-center">순위</th>
+                            <th className="p-3">시상 구분 (특별상 포함)</th>
+                            <th className="p-3">학번</th>
+                            <th className="p-3">작가 닉네임</th>
+                            <th className="p-3">작품 제목</th>
+                            <th className="p-3 text-center">총합 득표</th>
+                            <th className="p-3 text-center">학생 투표</th>
+                            <th className="p-3 text-center">교직원 투표</th>
+                            <th className="p-3 text-center">학부모 공감</th>
+                            <th className="p-3">선생님 지도 코멘트</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {paginatedSubmissions.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="p-8 text-center text-slate-400 font-bold">
+                                등록된 출품작이 없습니다.
+                              </td>
+                            </tr>
                           ) : (
-                            <span className="text-slate-500 font-bold">
-                              {idx === 0 ? "전교 1위 대상" : idx === 1 ? "전교 2위 최우수" : idx === 2 ? "전교 3위 우수" : "참가상"}
-                            </span>
+                            paginatedSubmissions.map((sub, idx) => {
+                              const rank = startIndex + idx + 1;
+                              const isTop1 = rank === 1;
+                              const isTop2 = rank === 2;
+                              const isTop3 = rank === 3;
+
+                              return (
+                                <tr key={sub.id} className="hover:bg-amber-50/50">
+                                  <td className="p-3 text-center font-black text-amber-600">
+                                    {isTop1 ? (
+                                      <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 px-2 py-0.5 rounded-lg border border-amber-300 font-black">
+                                        🥇 1위
+                                      </span>
+                                    ) : isTop2 ? (
+                                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-0.5 rounded-lg border border-slate-300 font-black">
+                                        🥈 2위
+                                      </span>
+                                    ) : isTop3 ? (
+                                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-200 font-black">
+                                        🥉 3위
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-600 font-bold">{rank}위</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3">
+                                    {sub.special_award_title ? (
+                                      <span className="bg-amber-100 text-amber-950 border border-amber-400 px-2.5 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1 shadow-2xs">
+                                        <Gift className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>{sub.special_award_title}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-600 font-bold">
+                                        {isTop1 ? "1위 (최다 득표)" : isTop2 ? "2위 (우수)" : isTop3 ? "3위 (장려)" : `${rank}위 (참가)`}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 font-bold text-slate-900">
+                                    {sub.studentGrade}학년 {sub.studentClass}반 {sub.studentNumber}번
+                                  </td>
+                                  <td className="p-3 font-bold text-sky-700">{sub.nickname}</td>
+                                  <td className="p-3 font-bold max-w-[180px] truncate" title={sub.title}>
+                                    {sub.title}
+                                  </td>
+                                  <td className="p-3 font-mono font-black text-rose-600 text-center text-sm">
+                                    {sub.votes}표
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-slate-700 text-center">
+                                    {sub.studentVotes || 0}표
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-amber-800 text-center">
+                                    {sub.teacherVotes || 0}표
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-rose-700 text-center">
+                                    {sub.parentVotes || 0}표
+                                  </td>
+                                  <td className="p-3 text-xs">
+                                    {sub.teacher_comment ? (
+                                      <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-bold max-w-xs break-words">
+                                        🧑‍🏫 {sub.teacher_comment}
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-300 font-bold">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
-                        </td>
-                        <td className="p-3 font-bold text-slate-900">
-                          {sub.studentGrade}학년 {sub.studentClass}반 {sub.studentNumber}번
-                        </td>
-                        <td className="p-3 font-bold text-sky-700">{sub.nickname}</td>
-                        <td className="p-3 font-bold">{sub.title}</td>
-                        <td className="p-3 font-mono font-black text-rose-600 text-center text-sm">{sub.votes}표</td>
-                        <td className="p-3 font-mono font-bold text-slate-700 text-center">{sub.studentVotes || 0}표</td>
-                        <td className="p-3 font-mono font-bold text-amber-800 text-center">{sub.teacherVotes || 0}표</td>
-                        <td className="p-3 font-mono font-bold text-rose-700 text-center">{sub.parentVotes || 0}표</td>
-                        <td className="p-3 text-[11px] text-slate-600 max-w-xs truncate font-medium">
-                          {sub.special_award_reason || currentChallenge.teacherTips || "교내 사진전에 적극적으로 참여하여 우수한 창의력을 발휘함."}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 10명 단위 페이지네이션 바 */}
+                    {totalPages > 1 && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="text-xs font-bold text-slate-600">
+                          전체 <b className="text-slate-900">{sortedSubmissions.length}명</b> 중{" "}
+                          <b>
+                            {startIndex + 1} ~ {Math.min(startIndex + PAGE_SIZE, sortedSubmissions.length)}번
+                          </b>{" "}
+                          학생 표시 중 ({currentPage} / {totalPages} 페이지)
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={currentPage === 1}
+                            onClick={() => setAwardPage((p) => Math.max(1, p - 1))}
+                            className="px-3 py-1.5 rounded-xl text-xs font-black border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                          >
+                            ◀ 이전 10명
+                          </button>
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setAwardPage(pageNum)}
+                              className={`w-8 h-8 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                                currentPage === pageNum
+                                  ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={currentPage === totalPages}
+                            onClick={() => setAwardPage((p) => Math.min(totalPages, p + 1))}
+                            className="px-3 py-1.5 rounded-xl text-xs font-black border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                          >
+                            다음 10명 ▶
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* 나이스 세특 원클릭 복사 배너 */}
               <div className="bg-amber-50 rounded-2xl p-4 border border-amber-300 space-y-2">
@@ -2021,14 +2144,14 @@ export default function TeacherAdminPage() {
         />
       )}
 
-      {/* K-에듀파인 시상 결과 발표 및 시상 계획 기안문 모달 */}
+      {/* K-에듀파인 시상 결과 발표 및 시상 계획 기안문 모달 (총합 득표 순위 반영) */}
       {currentChallenge && (
         <AwardResultDraftModal
           isOpen={isAwardResultDraftModalOpen}
           onClose={() => setIsAwardResultDraftModalOpen(false)}
           params={{
             challenge: currentChallenge,
-            submissions: submissions,
+            submissions: [...submissions].sort((a, b) => b.votes - a.votes),
             schoolName: schoolName,
           }}
         />
