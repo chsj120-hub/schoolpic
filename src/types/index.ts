@@ -85,6 +85,7 @@ export interface PhotoSubmission {
   is_hall_of_fame?: boolean; // 교내 명예의 전당 등재 여부
   is_public_shared?: boolean; // 전국 스쿨 교류관 등재 (1+2+3단계 모두 TRUE일 때만 노출)
   schoolName?: string; // 타 학교 노출용 가명 학교명 (예: 광주 한재초)
+  schoolCode?: string; // 학교 고유 코드 (예: SEN-1001)
   // 특별상 수여 기능 (교사가 직접 지정하는 특별상)
   special_award_title?: string; // 예: "아이디어 뱅크 특별상"
   special_award_reason?: string; // 생기부 연계 수여 사유

@@ -24,9 +24,36 @@ import {
 function ParentsVotingContent() {
   const searchParams = useSearchParams();
   const challengeId = searchParams.get("c") || "challenge-1";
-  const schoolParam = searchParams.get("school") || "한재초등학교";
 
   const [challenge, setChallenge] = useState<Challenge>(() => getChallengeByIdOrTheme(challengeId));
+  const [currentSchoolName, setCurrentSchoolName] = useState<string>(() => {
+    return searchParams.get("school") || "";
+  });
+
+  useEffect(() => {
+    const param = searchParams.get("school");
+    if (param) {
+      setCurrentSchoolName(param);
+      return;
+    }
+    if (challenge?.schoolName) {
+      setCurrentSchoolName(challenge.schoolName);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      const teacherSaved = localStorage.getItem("schoolpick_teacher");
+      if (teacherSaved) {
+        try {
+          const parsed = JSON.parse(teacherSaved);
+          if (parsed.schoolName) {
+            setCurrentSchoolName(parsed.schoolName);
+            return;
+          }
+        } catch {}
+      }
+    }
+    setCurrentSchoolName("우리 학교");
+  }, [searchParams, challenge]);
 
   useEffect(() => {
     if (challengeId) {
@@ -36,11 +63,14 @@ function ParentsVotingContent() {
         .then((data) => {
           if (data.success && data.challenge) {
             setChallenge(data.challenge);
+            if (!searchParams.get("school") && data.challenge.schoolName) {
+              setCurrentSchoolName(data.challenge.schoolName);
+            }
           }
         })
         .catch(() => {});
     }
-  }, [challengeId]);
+  }, [challengeId, searchParams]);
   const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
     return SAMPLE_SUBMISSIONS.map((sub, idx) => ({
       ...sub,
@@ -224,7 +254,7 @@ function ParentsVotingContent() {
             <span className="text-3xl">🏫</span>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
-                {schoolParam || challenge.schoolName || "한재초등학교"} {challenge.title}
+                {currentSchoolName} {challenge.title}
               </h1>
               <span className="text-xs sm:text-sm font-black text-slate-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">
                 (학부모 전용관)
@@ -617,16 +647,6 @@ function ParentsVotingContent() {
               </ul>
             </div>
           </div>
-
-          <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
-            <span className="text-3xl">🏫</span>
-            <Link
-              href="/teacher"
-              className="text-xs font-black text-slate-500 hover:text-slate-900 underline underline-offset-4"
-            >
-              선생님 관리관 바로가기
-            </Link>
-          </div>
         </div>
 
       </main>
@@ -726,7 +746,7 @@ function ParentsVotingContent() {
             <div className="text-xs text-slate-600 font-bold space-y-2 leading-relaxed">
               {activeInfoModal === "guide" && (
                 <p>
-                  한재초등학교 학생들의 따뜻한 우정과 창의적인 순간을 담은 디지털 사진전입니다.
+                  {currentSchoolName} 학생들의 따뜻한 우정과 창의적인 순간을 담은 디지털 사진전입니다.
                   초상권과 개인정보 보호를 위해 실명은 일체 공개되지 않으며, 학부모님께서는 1일 1표의 공감 표를 전해주실 수 있습니다.
                 </p>
               )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { NATIONAL_EXCHANGE_SUBMISSIONS } from "@/lib/constants";
+import { NATIONAL_EXCHANGE_SUBMISSIONS, KOREAN_REGIONS, detectSchoolRegion } from "@/lib/constants";
 import { PhotoSubmission } from "@/types";
 import {
   Globe,
@@ -109,10 +109,11 @@ export default function NationalExchangePage() {
     alert(`📦 [전체 아카이브 백업 다운로드]\n현재 전국 교류관에 등재된 ${totalCount}장의 고화질 사진 및 메타데이터를 ZIP 파일로 생성합니다.`);
   };
 
-  // 필터링 적용
+  // 필터링 적용 (17개 시·도 교육청 지역 자동 분류 시스템 연동)
   const filteredList = submissions.filter((item) => {
     if (selectedRegion !== "ALL") {
-      if (!item.schoolName?.includes(selectedRegion)) return false;
+      const itemRegion = detectSchoolRegion(item.schoolName, (item as any).schoolCode);
+      if (itemRegion !== selectedRegion) return false;
     }
     if (selectedTheme !== "ALL") {
       if (item.selectedFrame !== selectedTheme) return false;
@@ -317,12 +318,12 @@ export default function NationalExchangePage() {
               <Filter className="w-3.5 h-3.5 text-sky-600" />
               <span>지역:</span>
             </span>
-            {["ALL", "서울", "경기", "광주", "부산"].map((reg) => (
+            {KOREAN_REGIONS.map((reg) => (
               <button
                 key={reg}
                 type="button"
                 onClick={() => setSelectedRegion(reg)}
-                className={`px-3 py-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
                   selectedRegion === reg
                     ? "bg-[#FFC72C] text-slate-950 border-slate-900 shadow-xs"
                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"

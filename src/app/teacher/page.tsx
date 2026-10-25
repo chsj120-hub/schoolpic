@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { INITIAL_CHALLENGES, SAMPLE_SUBMISSIONS } from "@/lib/constants";
+import { INITIAL_CHALLENGES, SAMPLE_SUBMISSIONS, NATIONAL_EXCHANGE_SUBMISSIONS } from "@/lib/constants";
 import { Challenge, PhotoSubmission } from "@/types";
 import { findStudent, resetStudentPin } from "@/lib/studentStorage";
 import QRCodeModal from "@/components/QRCodeModal";
@@ -1360,7 +1360,7 @@ export default function TeacherAdminPage() {
                     우리 학교 등재: {submissions.filter(s => s.is_public_shared).length}/5장
                   </span>
                   <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-300 text-amber-800">
-                    전국 총 전시: 92/100장
+                    전국 총 전시: {Math.min(100, NATIONAL_EXCHANGE_SUBMISSIONS.length + submissions.filter(s => s.is_public_shared).length)}/100장
                   </span>
                   {isPipelineGuideOpen ? (
                     <ChevronUp className="w-4 h-4 text-emerald-800" />

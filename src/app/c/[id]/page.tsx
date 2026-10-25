@@ -987,7 +987,9 @@ export default function StudentChallengePage() {
                   studentClass,
                   studentNumber,
                   studentNickname,
-                  schoolCode: "JNE-3012",
+                  schoolCode: challenge.schoolCode || "JNE-3012",
+                  schoolName: challenge.schoolName || "우리 학교",
+                  studentConsent: false,
                 }),
               });
               const json = await res.json();
@@ -1012,6 +1014,11 @@ export default function StudentChallengePage() {
               votes: myExistingSubmission ? myExistingSubmission.votes : 0,
               submittedAt: new Date().toISOString().split("T")[0],
               selectedFrame: preset,
+              student_consent: false,
+              parent_consent: false,
+              teacher_approval: false,
+              is_public_shared: false,
+              schoolName: challenge.schoolName || "우리 학교",
               appliedStickers: appliedStickers?.map((s) => ({
                 id: s.uid,
                 text: s.text,

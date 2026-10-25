@@ -115,7 +115,8 @@ export async function POST(request: Request) {
       studentNumber,
       studentNickname,
       schoolCode = "JNE-3012",
-      studentConsent = true,
+      schoolName,
+      studentConsent = false,
     } = body;
 
     const cleanTitle = sanitizeText(title);
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
         .from("schools")
         .insert({
           school_code: schoolCode,
-          school_name: "한재초등학교",
+          school_name: schoolName || "우리 학교",
           region: "전남",
         })
         .select("id")
