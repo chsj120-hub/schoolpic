@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SAMPLE_SUBMISSIONS, INITIAL_CHALLENGES } from "@/lib/constants";
 import { PhotoSubmission, Challenge } from "@/types";
-import { Footer } from "@/components/Footer";
 import {
   Camera,
   Star,
@@ -439,9 +438,6 @@ export default function ParentsVotingPage() {
           </div>
         </div>
       )}
-
-      <Footer />
-
     </div>
   );
 }

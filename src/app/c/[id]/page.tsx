@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { INITIAL_CHALLENGES, SAMPLE_SUBMISSIONS } from "@/lib/constants";
 import { Challenge, PhotoSubmission } from "@/types";
-import { Footer } from "@/components/Footer";
 import CameraCanvasComposerModal, { FramePresetType } from "@/components/CameraCanvasComposerModal";
 import {
   Camera,
@@ -117,6 +116,9 @@ export default function StudentChallengePage() {
 
   // 사진 출품(카메라) 모달 상태
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
+
+  // 다른 사진전 전환 모달 상태
+  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState<boolean>(false);
 
   // 고화질 전체보기(라이트박스) 모달 상태 (짤림 방지 전체보기)
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoSubmission | null>(null);
@@ -255,9 +257,18 @@ export default function StudentChallengePage() {
                     학생 전용
                   </span>
                 </div>
-                <p className="text-[11px] font-bold text-amber-950/80 -mt-0.5 truncate max-w-[200px]">
-                  {challenge.title}
-                </p>
+                <div
+                  onClick={() => setIsSwitchModalOpen(true)}
+                  className="cursor-pointer group flex items-center gap-1 hover:opacity-90 transition-opacity"
+                  title="다른 사진전으로 전환하기"
+                >
+                  <p className="text-[11px] font-black text-amber-950 -mt-0.5 truncate max-w-[155px] group-hover:underline">
+                    {challenge.title}
+                  </p>
+                  <span className="text-[9px] bg-white/90 text-amber-900 font-black px-1.5 py-0.2 rounded-md shrink-0 border border-amber-500/40 shadow-2xs">
+                    전환 ▾
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -350,6 +361,70 @@ export default function StudentChallengePage() {
               >
                 저장 완료
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 우리 학교 사진전 목록 전환 팝업 */}
+        {isSwitchModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-5 border-4 border-amber-400 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                  <span className="text-lg">📸</span> 우리 학교 진행 중인 사진전
+                </h4>
+                <button
+                  onClick={() => setIsSwitchModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">
+                참여하거나 감상하고 싶은 사진전을 선택하세요:
+              </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto pt-1">
+                {INITIAL_CHALLENGES.map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onClick={() => {
+                      setIsSwitchModalOpen(false);
+                      router.push(`/c/${ch.id}`);
+                    }}
+                    className={`w-full p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                      ch.id === challenge.id
+                        ? "bg-amber-50 border-amber-500 shadow-xs ring-2 ring-amber-300"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{ch.icon || "📷"}</span>
+                        <span className="font-black text-xs text-slate-900 truncate">{ch.title}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        {ch.targetGrade || "전교생"} · 담당: {ch.teacherName}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                        ch.status === "SUBMITTING"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : ch.status === "VOTING"
+                          ? "bg-sky-100 text-sky-800 border border-sky-300"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {ch.status === "SUBMITTING"
+                        ? "접수 중"
+                        : ch.status === "VOTING"
+                        ? "투표 중"
+                        : "종료"}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -829,8 +904,6 @@ export default function StudentChallengePage() {
           </div>
         )}
       </div>
-
-      <Footer />
     </div>
   );
 }
