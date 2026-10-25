@@ -76,3 +76,25 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Challenge ID required" }, { status: 400 });
+    }
+
+    // 서버 스토어에서 삭제
+    delete challengesStore[id];
+
+    return NextResponse.json({
+      success: true,
+      message: `Challenge ${id} successfully deleted from server store`,
+    });
+  } catch (error) {
+    console.error("Failed to delete challenge:", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
