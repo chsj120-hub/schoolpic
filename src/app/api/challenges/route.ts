@@ -6,6 +6,7 @@ import {
   getStoredChallenges,
   saveChallenge,
   deleteChallenge,
+  deleteSubmissionsByChallengeId,
 } from "@/lib/serverDataStore";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,35 @@ function mapRowToChallenge(row: any): Challenge {
   };
 }
 
+async function purgeChallengeSubmissionsInSupabase(supabase: any, challengeId: string) {
+  try {
+    const { data: allSubs } = await supabase
+      .from("submissions")
+      .select("id, exhibition_id, thumbnail_url");
+
+    if (allSubs && allSubs.length > 0) {
+      const targetIds: string[] = [];
+      for (const row of allSubs) {
+        let meta: any = {};
+        if (typeof row.thumbnail_url === "string" && row.thumbnail_url.startsWith("{")) {
+          try {
+            meta = JSON.parse(row.thumbnail_url);
+          } catch {}
+        }
+        const rowCid = meta.challengeId || row.exhibition_id || "";
+        if (rowCid === challengeId || !rowCid) {
+          targetIds.push(row.id);
+        }
+      }
+      if (targetIds.length > 0) {
+        await supabase.from("submissions").delete().in("id", targetIds);
+      }
+    }
+  } catch (err) {
+    console.warn("Supabase purgeChallengeSubmissions warning:", err);
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
@@ -82,7 +112,7 @@ export async function GET(request: Request) {
   // 1. 로컬/메모리 스토어 확인
   const storedChallenges = getStoredChallenges();
 
-  // 2. Supabase DB에서 개설된 전시회 조회 (Vercel 서버리스 인스턴스 간 실시간 동기화)
+  // 2. Supabase DB에서 개설된 전시회 조회
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -99,9 +129,7 @@ export async function GET(request: Request) {
       if (rows && rows.length > 0) {
         rows.forEach((row: any) => {
           const mapped = mapRowToChallenge(row);
-          if (!storedChallenges[mapped.id]) {
-            storedChallenges[mapped.id] = mapped;
-          }
+          storedChallenges[mapped.id] = mapped;
         });
       }
     } catch (dbErr) {
@@ -124,18 +152,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, challenge: resolved });
   }
 
-  // 전체 목록 병합 (초기 챌린지 + 개설 챌린지)
+  // 전체 목록 병합 (실제 개설된 챌린지 우선)
   const map: Record<string, Challenge> = {};
-  INITIAL_CHALLENGES.forEach((c) => {
-    map[c.id] = c;
-  });
+  if (!schoolCode || schoolCode === "TST-7777") {
+    INITIAL_CHALLENGES.forEach((c) => {
+      map[c.id] = c;
+    });
+  }
   Object.values(storedChallenges).forEach((c) => {
     map[c.id] = c;
   });
 
   let list = Object.values(map);
-  if (schoolCode) {
-    list = list.filter((c) => !c.schoolCode || c.schoolCode === schoolCode);
+  if (schoolCode && schoolCode !== "TST-7777") {
+    const schoolMatches = list.filter((c) => c.schoolCode === schoolCode);
+    if (schoolMatches.length > 0) {
+      list = schoolMatches;
+    }
   }
 
   return NextResponse.json({
@@ -148,6 +181,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const challenge: Challenge = body.challenge;
+    const resetSubmissions: boolean = body.resetSubmissions === true;
 
     if (!challenge || !challenge.id) {
       return NextResponse.json(
@@ -156,13 +190,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // 신규 개설 또는 재오픈(resetSubmissions: true) 시 이전 사진전의 잔여 출품작 완전 초기화
+    if (resetSubmissions) {
+      deleteSubmissionsByChallengeId(challenge.id);
+    }
+
     // 1. 파일/메모리 스토어에 저장
     saveChallenge(challenge);
 
-    // 2. Supabase DB 영구 저장 (온라인 배포 시 학생/학부모/교사 모든 기기 공유)
+    // 2. Supabase DB 영구 저장
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
+        if (resetSubmissions) {
+          await purgeChallengeSubmissionsInSupabase(supabase, challenge.id);
+        }
+
         let schoolId: string | null = null;
         const sCode = challenge.schoolCode || "JNE-3012";
         const sName = challenge.schoolName || "우리 학교";
@@ -194,7 +237,6 @@ export async function POST(request: Request) {
         const voteEndIso = toIsoWithKstOffset(challenge.votingEndDate, challenge.votingEndTime, "17:00");
         const purgeDate = new Date(new Date(voteEndIso).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-        // 기존 동일 theme_id 전시회가 있으면 업데이트, 없으면 추가
         const { data: existingEx } = await supabase
           .from("exhibitions")
           .select("id")
@@ -247,13 +289,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: "Challenge ID required" }, { status: 400 });
     }
 
-    // 1. 로컬/메모리 스토어에서 삭제
+    // 1. 로컬/메모리 스토어에서 사진전 및 해당 출품작 삭제
     deleteChallenge(id);
+    deleteSubmissionsByChallengeId(id);
 
-    // 2. Supabase DB에서도 삭제
+    // 2. Supabase DB에서도 전시회 및 해당 출품작 완전 삭제
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
+        await purgeChallengeSubmissionsInSupabase(supabase, id);
         await supabase.from("exhibitions").delete().eq("theme_id", id);
       } catch (dbErr) {
         console.warn("Supabase exhibition delete warning:", dbErr);
@@ -262,7 +306,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Challenge ${id} successfully deleted from server store`,
+      message: `Challenge ${id} and its submissions successfully deleted from server store`,
     });
   } catch (error) {
     console.error("Failed to delete challenge:", error);

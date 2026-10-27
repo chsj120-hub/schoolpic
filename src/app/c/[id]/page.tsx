@@ -102,27 +102,26 @@ export default function StudentChallengePage() {
   }, [params?.id]);
 
   // 우리 학교 진행 중인 사진전 전체 목록 (전환 모달용 동적 취합)
-  const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
+  const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>([challenge]);
 
   useEffect(() => {
-    // 로컬 스토리지 및 서버에서 개설된 모든 사진전 취합
+    const targetSchoolCode = challenge.schoolCode || "";
+    // 로컬 스토리지 및 서버에서 우리 학교의 개설된 모든 사진전 취합
     if (typeof window !== "undefined") {
       try {
-        const map: Record<string, Challenge> = {};
-        INITIAL_CHALLENGES.forEach((c) => {
-          map[c.id] = c;
-        });
+        const map: Record<string, Challenge> = { [challenge.id]: challenge };
 
         const allStored = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
         Object.values(allStored).forEach((c: any) => {
-          if (c?.id) map[c.id] = c;
+          if (c?.id && (!targetSchoolCode || !c.schoolCode || c.schoolCode === targetSchoolCode)) {
+            map[c.id] = c;
+          }
         });
 
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("schoolpick_challenges_")) {
-            const list = JSON.parse(localStorage.getItem(key) || "[]");
-            list.forEach((c: any) => {
+        if (targetSchoolCode) {
+          const schoolList = JSON.parse(localStorage.getItem(`schoolpick_challenges_${targetSchoolCode}`) || "[]");
+          if (Array.isArray(schoolList)) {
+            schoolList.forEach((c: any) => {
               if (c?.id) map[c.id] = c;
             });
           }
@@ -132,25 +131,29 @@ export default function StudentChallengePage() {
       } catch (e) {}
     }
 
-    // 서버 API에서도 전체 챌린지 수신
-    fetch("/api/challenges")
+    // 서버 API에서도 우리 학교의 챌린지 수신
+    const query = targetSchoolCode ? `?schoolCode=${encodeURIComponent(targetSchoolCode)}` : "";
+    fetch(`/api/challenges${query}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((json) => {
         if (json.success && Array.isArray(json.challenges)) {
-          setAvailableChallenges((prev) => {
+          const serverList: Challenge[] = json.challenges.filter(
+            (c: Challenge) => !targetSchoolCode || !c.schoolCode || c.schoolCode === targetSchoolCode
+          );
+          if (serverList.length > 0) {
             const map: Record<string, Challenge> = {};
-            prev.forEach((c) => {
+            serverList.forEach((c) => {
               map[c.id] = c;
             });
-            json.challenges.forEach((c: Challenge) => {
-              map[c.id] = c;
-            });
-            return Object.values(map);
-          });
+            if (!map[challenge.id]) {
+              map[challenge.id] = challenge;
+            }
+            setAvailableChallenges(Object.values(map));
+          }
         }
       })
       .catch(() => {});
-  }, [challenge.schoolCode]);
+  }, [challenge.id, challenge.schoolCode]);
 
   // 출품작 목록: 오직 현재 사진전(challengeId)에 출품된 작품만 엄격 격리 로드!
   const [submissions, setSubmissions] = useState<PhotoSubmission[]>(() => {
@@ -163,7 +166,7 @@ export default function StudentChallengePage() {
     return [];
   });
 
-  // Supabase 실시간 출품작 동기화 (사진전별 완전 격리)
+  // Supabase 실시간 출품작 동기화 (사진전별 완전 격리 & 재개설 시 빈 배열 즉시 반영)
   useEffect(() => {
     async function loadSubmissions() {
       try {
@@ -174,13 +177,14 @@ export default function StudentChallengePage() {
         const data = await res.json();
         if (data.success && Array.isArray(data.submissions)) {
           const matching = data.submissions.filter(
-            (s: any) => !s.challengeId || s.challengeId === challengeId
+            (s: any) => s.challengeId === challengeId
           );
-          if (matching.length > 0) {
-            setSubmissions(matching);
-            if (typeof window !== "undefined") {
-              localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
-            }
+          setSubmissions(matching);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
+          }
+          if (matching.length === 0) {
+            setVotedMap({});
           }
         }
       } catch (e) {

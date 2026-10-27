@@ -6,6 +6,8 @@ import {
   getStoredSubmissions,
   saveSubmission,
   updateSubmissionStatus,
+  deleteSubmissionById,
+  deleteSubmissionsByChallengeId,
 } from "@/lib/serverDataStore";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +76,6 @@ export async function GET(request: Request) {
         if (publicOnly) {
           query = query.eq("is_public_shared", true);
         } else if (exhibitionId && UUID_REGEX.test(exhibitionId)) {
-          // exhibitionId가 실제 UUID 형식일 때만 DB 레벨에서 필터링 (문자열 ID 시 UUID 문법 에러 방지)
           query = query.eq("exhibition_id", exhibitionId);
         }
 
@@ -99,18 +100,16 @@ export async function GET(request: Request) {
 
             const rowChallengeId = meta.challengeId || row.exhibition_id || "";
 
-            // 특정 사진전(exhibitionId) 요청인 경우:
-            // 1) rowChallengeId가 일치하거나
-            // 2) 이전 버전에서 exhibition_id가 null로 저장된 출품작(rowChallengeId === "")도 누락 없이 복구하여 표시
+            // 특정 사진전(exhibitionId) 요청인 경우 해당 사진전과 일치하는 작품만 엄격히 필터링
             if (!publicOnly && exhibitionId) {
-              if (rowChallengeId && rowChallengeId !== exhibitionId) {
+              if (rowChallengeId !== exhibitionId) {
                 continue;
               }
             }
 
             dbFormatted.push({
               id: row.id,
-              challengeId: rowChallengeId || exhibitionId || "culture-8",
+              challengeId: rowChallengeId || exhibitionId || "",
               schoolCode: meta.schoolCode || schoolCode || "JNE-3012",
               schoolName: meta.schoolName || "우리 학교",
               studentGrade: student?.grade || 1,
@@ -313,7 +312,7 @@ export async function POST(request: Request) {
           }
         }
 
-        // exhibitions 테이블에서 UUID 조회 (없으면 null 허용하되 thumbnail_url에 메타데이터 기록)
+        // exhibitions 테이블에서 UUID 조회
         let resolvedExhibitionUuid: string | null = null;
         if (UUID_REGEX.test(realExhibitionId)) {
           resolvedExhibitionUuid = realExhibitionId;
@@ -328,7 +327,33 @@ export async function POST(request: Request) {
           }
         }
 
-        // thumbnail_url 컬럼에 challengeId 및 schoolCode 메타데이터 JSON 보관 (UUID가 아닌 테마 ID도 100% 매칭 보장)
+        // 1인 1작품 유지: 해당 학생이 동일 사진전에 이미 출품한 기존 작품이 있으면 삭제 후 재등록
+        if (studentId) {
+          const { data: prevSubs } = await supabase
+            .from("submissions")
+            .select("id, exhibition_id, thumbnail_url")
+            .eq("student_id", studentId);
+
+          if (prevSubs && prevSubs.length > 0) {
+            const idsToDelete: string[] = [];
+            for (const p of prevSubs) {
+              let pMeta: any = {};
+              if (typeof p.thumbnail_url === "string" && p.thumbnail_url.startsWith("{")) {
+                try {
+                  pMeta = JSON.parse(p.thumbnail_url);
+                } catch {}
+              }
+              const pCid = pMeta.challengeId || p.exhibition_id || "";
+              if (pCid === realExhibitionId || !pCid) {
+                idsToDelete.push(p.id);
+              }
+            }
+            if (idsToDelete.length > 0) {
+              await supabase.from("submissions").delete().in("id", idsToDelete);
+            }
+          }
+        }
+
         const metaJson = JSON.stringify({
           challengeId: realExhibitionId,
           schoolCode,
@@ -375,10 +400,7 @@ export async function POST(request: Request) {
     );
 
     if (existingIdx >= 0) {
-      newSubmission.votes = storedList[existingIdx].votes || 0;
-      newSubmission.studentVotes = storedList[existingIdx].studentVotes || 0;
-      newSubmission.teacherVotes = storedList[existingIdx].teacherVotes || 0;
-      newSubmission.parentVotes = storedList[existingIdx].parentVotes || 0;
+      deleteSubmissionById(storedList[existingIdx].id);
     }
 
     saveSubmission(newSubmission);
@@ -430,6 +452,74 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true, id, is_public_shared });
   } catch (err: any) {
     console.error("Submissions PATCH error:", err);
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+  }
+}
+
+/**
+ * 출품작 삭제 API (DELETE) - 개별 작품 삭제(id) 또는 특정 사진전 전체 출품작 초기화(exhibitionId)
+ */
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    const exhibitionId = searchParams.get("exhibitionId");
+
+    const supabase = getSupabaseServerClient();
+
+    // 1. 개별 작품 삭제
+    if (id) {
+      deleteSubmissionById(id);
+      if (supabase && UUID_REGEX.test(id)) {
+        await supabase.from("submissions").delete().eq("id", id);
+      }
+      return NextResponse.json({ success: true, deletedId: id });
+    }
+
+    // 2. 특정 사진전(exhibitionId)의 모든 출품작 초기화
+    if (exhibitionId) {
+      deleteSubmissionsByChallengeId(exhibitionId);
+
+      if (supabase) {
+        try {
+          if (UUID_REGEX.test(exhibitionId)) {
+            await supabase.from("submissions").delete().eq("exhibition_id", exhibitionId);
+          }
+
+          // thumbnail_url 메타데이터가 해당 exhibitionId이거나 exhibition_id가 null인 잔여 데이터 일괄 삭제
+          const { data: allSubs } = await supabase
+            .from("submissions")
+            .select("id, exhibition_id, thumbnail_url");
+
+          if (allSubs && allSubs.length > 0) {
+            const targetIds: string[] = [];
+            for (const row of allSubs) {
+              let meta: any = {};
+              if (typeof row.thumbnail_url === "string" && row.thumbnail_url.startsWith("{")) {
+                try {
+                  meta = JSON.parse(row.thumbnail_url);
+                } catch {}
+              }
+              const rowCid = meta.challengeId || row.exhibition_id || "";
+              if (rowCid === exhibitionId || !rowCid) {
+                targetIds.push(row.id);
+              }
+            }
+            if (targetIds.length > 0) {
+              await supabase.from("submissions").delete().in("id", targetIds);
+            }
+          }
+        } catch (dbErr) {
+          console.warn("Supabase submissions purge warning:", dbErr);
+        }
+      }
+
+      return NextResponse.json({ success: true, purgedExhibitionId: exhibitionId });
+    }
+
+    return NextResponse.json({ success: false, message: "id 또는 exhibitionId가 필요합니다." }, { status: 400 });
+  } catch (err: any) {
+    console.error("Submissions DELETE error:", err);
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }

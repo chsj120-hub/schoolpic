@@ -70,7 +70,7 @@ export default function StudentOnboardingPage() {
     }
   }, []);
 
-  const handleEnter = (e: React.FormEvent) => {
+  const handleEnter = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -144,6 +144,21 @@ export default function StudentOnboardingPage() {
     }
 
     setIsLoading(true);
+    try {
+      const res = await fetch(`/api/challenges?schoolCode=${encodeURIComponent(schoolCode)}`, { cache: "no-store" });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.challenges) && data.challenges.length > 0) {
+        const active =
+          data.challenges.find((ch: any) => ch.status === "SUBMITTING") ||
+          data.challenges.find((ch: any) => ch.status === "VOTING") ||
+          data.challenges[0];
+        if (active?.id) {
+          window.location.href = `/c/${active.id}`;
+          return;
+        }
+      }
+    } catch (e) {}
+
     setTimeout(() => {
       // 사진전 갤러리로 입장
       window.location.href = "/c/challenge-1";

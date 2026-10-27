@@ -170,12 +170,16 @@ export default function ThemeAndOptionWizardModal({
       createdAt: new Date().toISOString().split("T")[0],
     };
 
-    // 서버 API 동기화 (학생 및 학부모 기기에서 바로 접속 가능하도록 보존)
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`schoolpick_submissions_${challengeId}`);
+    }
+
+    // 서버 API 동기화 (재개설 시 이전 사진전의 잔여 출품작 자동 초기화 포함)
     try {
       await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challenge: newChallenge }),
+        body: JSON.stringify({ challenge: newChallenge, resetSubmissions: true }),
       });
     } catch (e) {
       console.warn("Failed to POST challenge to /api/challenges:", e);

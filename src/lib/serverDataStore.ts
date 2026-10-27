@@ -206,3 +206,27 @@ export function updateSubmissionStatus(id: string, updates: Partial<any>): boole
   }
   return false;
 }
+
+export function deleteSubmissionById(id: string): void {
+  ensureDataDir();
+  const list = getStoredSubmissions();
+  const next = list.filter((s) => s.id !== id);
+  memorySubmissions = next;
+  try {
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(next, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Could not write to submissions.json:", err);
+  }
+}
+
+export function deleteSubmissionsByChallengeId(challengeId: string): void {
+  ensureDataDir();
+  const list = getStoredSubmissions();
+  const next = list.filter((s) => s.challengeId && s.challengeId !== challengeId);
+  memorySubmissions = next;
+  try {
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(next, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Could not write to submissions.json:", err);
+  }
+}

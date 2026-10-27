@@ -188,9 +188,7 @@ export default function TeacherAdminPage() {
           isInternalApproved: item.isInternalApproved ?? true,
           isExternalApproved: item.is_public_shared ?? false,
         }));
-        const dbIds = new Set(dbItems.map((s: any) => s.id));
-        const localOnly = loadedList.filter((s: any) => !dbIds.has(s.id));
-        loadedList = [...dbItems, ...localOnly];
+        loadedList = dbItems;
 
         if (typeof window !== "undefined") {
           localStorage.setItem(`schoolpick_submissions_${cid}`, JSON.stringify(loadedList));
@@ -661,27 +659,53 @@ export default function TeacherAdminPage() {
   }, [selectedChallengeId]);
 
   // 대시보드에서 날짜 및 시간 변경 저장 핸들러 (요청: 대시보드에서 선택해서 변경 가능하도록 기능 구현)
-  const handleSaveTimelineDates = () => {
+  const handleSaveTimelineDates = async () => {
     if (!currentChallenge) return;
+    const nowMs = Date.now();
+    const subEndMs = new Date(`${submissionEndDate}T${submissionEndTime || "23:59"}`).getTime();
+    const voteEndMs = new Date(`${votingEndDate}T${votingEndTime || "23:59"}`).getTime();
+
+    let nextStatus = currentChallenge.status;
+    if (subEndMs > nowMs) {
+      nextStatus = "SUBMITTING";
+    } else if (voteEndMs > nowMs) {
+      nextStatus = "VOTING";
+    }
+
+    const updatedChallenge: Challenge = {
+      ...currentChallenge,
+      submissionStartDate,
+      submissionStartTime,
+      submissionEndDate,
+      submissionEndTime,
+      votingStartDate,
+      votingStartTime,
+      votingEndDate,
+      votingEndTime,
+      status: nextStatus,
+    };
+
     const updated = challenges.map((ch) =>
-      ch.id === selectedChallengeId
-        ? {
-            ...ch,
-            submissionStartDate,
-            submissionStartTime,
-            submissionEndDate,
-            submissionEndTime,
-            votingStartDate,
-            votingStartTime,
-            votingEndDate,
-            votingEndTime,
-          }
-        : ch
+      ch.id === selectedChallengeId ? updatedChallenge : ch
     );
     setChallenges(updated);
     if (typeof window !== "undefined") {
       localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+      try {
+        const all = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        all[currentChallenge.id] = updatedChallenge;
+        localStorage.setItem("schoolpick_all_challenges", JSON.stringify(all));
+      } catch (e) {}
     }
+
+    try {
+      await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenge: updatedChallenge }),
+      });
+    } catch (e) {}
+
     showToast(
       `💾 타임라인 일정 변경 완료 (${currentChallenge.title})`,
       `접수: ${submissionStartDate} ${submissionStartTime}~${submissionEndDate} ${submissionEndTime} | 투표: ${votingStartDate}~${votingEndDate}`,
@@ -766,7 +790,7 @@ export default function TeacherAdminPage() {
   const [pinTargetClass, setPinTargetClass] = useState<number>(2);
   const [pinTargetNumber, setPinTargetNumber] = useState<number>(14);
 
-  // 신규 사진전 등록
+  // 신규 사진전 등록 (재개설 시 이전 출품작 데이터 완전 초기화)
   const handleCreateChallenge = async (newChallenge: Challenge) => {
     const enrichedChallenge: Challenge = {
       ...newChallenge,
@@ -777,7 +801,10 @@ export default function TeacherAdminPage() {
     setChallenges(updated);
     setSelectedChallengeId(enrichedChallenge.id);
     setSelectedChallengeForQR(enrichedChallenge);
+    setSubmissions([]);
+
     if (typeof window !== "undefined") {
+      localStorage.removeItem(`schoolpick_submissions_${enrichedChallenge.id}`);
       localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
 
       // 전역 챌린지 딕셔너리에도 즉시 저장 (학생 접속 링크 /c/[id] 호환 보장)
@@ -790,12 +817,12 @@ export default function TeacherAdminPage() {
       }
     }
 
-    // 서버 API 동기화 (학생들이 다른 기기나 모바일에서 QR 링크로 접속할 때 즉시 로드되도록 등록)
+    // 서버 API 동기화 (학생들이 다른 기기나 모바일에서 QR 링크로 접속할 때 즉시 로드되도록 등록 + 이전 출품작 잔여 데이터 클린업)
     try {
       await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challenge: enrichedChallenge }),
+        body: JSON.stringify({ challenge: enrichedChallenge, resetSubmissions: true }),
       });
     } catch (apiErr) {
       console.warn("Server challenge sync error, saved locally:", apiErr);
@@ -803,7 +830,7 @@ export default function TeacherAdminPage() {
 
     showToast(
       `🎉 새로운 사진전 [${enrichedChallenge.title}] 개설 완료!`,
-      "안내 포스터 출력 및 기안문 다운로드가 가능합니다.",
+      "이전 출품 기록이 초기화되었으며 학생들이 새 사진을 올릴 수 있습니다.",
       "success"
     );
   };
@@ -950,10 +977,21 @@ export default function TeacherAdminPage() {
     showToast("✅ 전 작품 일괄 교내 승인 완료", "선택된 사진전의 모든 출품작이 교내 갤러리에 공개되었습니다.", "success");
   };
 
-  // 출품작 삭제
-  const handleDeleteSubmission = (id: string) => {
+  // 출품작 삭제 (서버 DB 및 로컬 동시 삭제 -> 학생 즉시 재출품 가능)
+  const handleDeleteSubmission = async (id: string) => {
     if (confirm("해당 출품작을 정말로 삭제하시겠습니까? 학생에게 재출품 권한이 부여됩니다.")) {
-      setSubmissions((prev) => prev.filter((s) => s.id !== id));
+      setSubmissions((prev) => {
+        const filtered = prev.filter((s) => s.id !== id);
+        if (typeof window !== "undefined" && selectedChallengeId) {
+          localStorage.setItem(`schoolpick_submissions_${selectedChallengeId}`, JSON.stringify(filtered));
+        }
+        return filtered;
+      });
+      try {
+        await fetch(`/api/submissions?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch (e) {
+        console.warn("Failed to delete submission on server:", e);
+      }
       showToast("🗑️ 출품작이 안전하게 삭제되었습니다.", "해당 학생은 새 사진을 다시 출품할 수 있습니다.", "info");
     }
   };
@@ -1178,6 +1216,85 @@ export default function TeacherAdminPage() {
     }
 
     showToast("🗑️ 사진전 영구 삭제 완료", `[${targetTitle}] 사진전과 모든 관련 데이터가 완전히 삭제되었습니다.`, "info");
+  };
+
+  // 1-2. 종료된(또는 기존) 사진전 초기화 후 다시 열기 (이전 사진 모두 삭제 + 접수 상태로 재오픈)
+  const handleReopenAndResetChallenge = async () => {
+    if (!currentChallenge) return;
+    const ok = window.confirm(
+      `🔄 [사진전 초기화 및 다시 열기]\n\n'${currentChallenge.title}' 사진전의 기존 출품 사진을 모두 삭제(초기화)하고, 오늘부터 새롭게 사진을 접수받도록 다시 여시겠습니까?\n\n- 이전에 올라왔던 사진들이 모두 초기화됩니다.\n- 학생들이 새 사진을 다시 출품할 수 있게 됩니다.`
+    );
+    if (!ok) return;
+
+    const today = new Date();
+    const formatDate = (d: Date) => d.toISOString().split("T")[0];
+    const addDays = (d: Date, days: number) => {
+      const copy = new Date(d);
+      copy.setDate(copy.getDate() + days);
+      return copy;
+    };
+
+    const newSubStart = formatDate(today);
+    const newSubEnd = formatDate(addDays(today, 3));
+    const newVoteStart = formatDate(addDays(today, 4));
+    const newVoteEnd = formatDate(addDays(today, 7));
+
+    const reopenedChallenge: Challenge = {
+      ...currentChallenge,
+      status: "SUBMITTING",
+      submissionStartDate: newSubStart,
+      submissionStartTime: "09:00",
+      submissionEndDate: newSubEnd,
+      submissionEndTime: "16:30",
+      votingStartDate: newVoteStart,
+      votingStartTime: "09:00",
+      votingEndDate: newVoteEnd,
+      votingEndTime: "16:30",
+      submissionCount: 0,
+      totalVotes: 0,
+      createdAt: newSubStart,
+    };
+
+    setSubmissionStartDate(newSubStart);
+    setSubmissionStartTime("09:00");
+    setSubmissionEndDate(newSubEnd);
+    setSubmissionEndTime("16:30");
+    setVotingStartDate(newVoteStart);
+    setVotingStartTime("09:00");
+    setVotingEndDate(newVoteEnd);
+    setVotingEndTime("16:30");
+
+    const updated = challenges.map((ch) =>
+      ch.id === currentChallenge.id ? reopenedChallenge : ch
+    );
+    setChallenges(updated);
+    setSubmissions([]);
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`schoolpick_submissions_${currentChallenge.id}`);
+      localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
+      try {
+        const all = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
+        all[currentChallenge.id] = reopenedChallenge;
+        localStorage.setItem("schoolpick_all_challenges", JSON.stringify(all));
+      } catch (e) {}
+    }
+
+    try {
+      await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenge: reopenedChallenge, resetSubmissions: true }),
+      });
+    } catch (e) {
+      console.warn("Failed to reopen challenge on server:", e);
+    }
+
+    showToast(
+      "🔄 사진전 초기화 및 재오픈 완료!",
+      "이전 출품작이 모두 초기화되었으며 학생들이 새로운 사진을 올릴 수 있습니다.",
+      "success"
+    );
   };
 
   const handlePurgeAllData = handleDeleteCurrentChallenge;
@@ -1828,6 +1945,16 @@ export default function TeacherAdminPage() {
                     title="사진 프레임 하단 띠지에 학년·반·번호 노출 여부를 토글합니다."
                   >
                     <span>{currentChallenge.showGradeClassOnFrame ? "🏷️ 띠지: 학년반 표시" : "🔒 띠지: 닉네임만"}</span>
+                  </button>
+
+                  {/* 사진전 초기화 후 다시 열기 버튼 */}
+                  <button
+                    type="button"
+                    onClick={handleReopenAndResetChallenge}
+                    className="py-2 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-black text-xs border border-sky-300 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                    title="이전에 올라온 사진을 모두 초기화하고 사진전을 처음부터 다시 엽니다."
+                  >
+                    <span>🔄 초기화 & 다시 열기</span>
                   </button>
 
                   {/* 실수로 개설된 사진전 즉시 삭제 버튼 */}
