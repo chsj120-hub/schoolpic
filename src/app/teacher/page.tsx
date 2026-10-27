@@ -146,58 +146,74 @@ export default function TeacherAdminPage() {
   // 접수된 출품작 검수 목록 (실제 출품작만 로드하여 초기 빈 갤러리 유지)
   const [submissions, setSubmissions] = useState<Array<PhotoSubmission & { isInternalApproved: boolean; isExternalApproved: boolean }>>([]);
 
-  // 선택된 사진전의 실제 출품작 동기화 (로컬스토리지 및 Supabase R2 서버 연동)
-  useEffect(() => {
-    async function loadSubmissionsForCurrentChallenge() {
-      if (!selectedChallengeId) {
-        setSubmissions([]);
-        return;
-      }
-
-      let loadedList: any[] = [];
-
-      // 1. 브라우저 로컬 저장소에서 해당 사진전 출품작 우선 확인
-      if (typeof window !== "undefined") {
-        try {
-          const raw = localStorage.getItem(`schoolpick_submissions_${selectedChallengeId}`);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              loadedList = parsed.map((item: any) => ({
-                ...item,
-                isInternalApproved: item.isInternalApproved ?? true,
-                isExternalApproved: item.is_public_shared ?? false,
-              }));
-            }
-          }
-        } catch (e) {
-          console.warn("Local submissions parse error:", e);
-        }
-      }
-
-      // 2. 서버 API에서 해당 사진전 실제 출품작 동기화
-      try {
-        const res = await fetch(`/api/submissions?exhibitionId=${selectedChallengeId}&schoolCode=${schoolCode}`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.submissions)) {
-          const dbItems = data.submissions.map((item: any) => ({
-            ...item,
-            isInternalApproved: item.isInternalApproved ?? true,
-            isExternalApproved: item.is_public_shared ?? false,
-          }));
-          const existingIds = new Set(loadedList.map((s: any) => s.id));
-          const newFromDb = dbItems.filter((s: any) => !existingIds.has(s.id));
-          loadedList = [...loadedList, ...newFromDb];
-        }
-      } catch (e) {
-        console.warn("Could not sync submissions from server:", e);
-      }
-
-      setSubmissions(loadedList);
+  // 선택된 사진전의 실제 출품작 동기화 (로컬스토리지 및 Supabase/R2 서버 실시간 연동)
+  const syncSubmissionsForChallenge = async (targetChallengeId?: string) => {
+    const cid = targetChallengeId ?? selectedChallengeId;
+    if (!cid) {
+      setSubmissions([]);
+      return;
     }
 
-    loadSubmissionsForCurrentChallenge();
-  }, [selectedChallengeId, schoolCode]);
+    let loadedList: any[] = [];
+
+    // 1. 브라우저 로컬 저장소에서 해당 사진전 출품작 우선 확인
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`schoolpick_submissions_${cid}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            loadedList = parsed.map((item: any) => ({
+              ...item,
+              isInternalApproved: item.isInternalApproved ?? true,
+              isExternalApproved: item.is_public_shared ?? false,
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn("Local submissions parse error:", e);
+      }
+    }
+
+    // 2. 서버 API에서 해당 사진전 실제 출품작 동기화 (캐시 방지 타임스탬프 포함)
+    try {
+      const res = await fetch(
+        `/api/submissions?exhibitionId=${encodeURIComponent(cid)}&schoolCode=${encodeURIComponent(schoolCode)}&_t=${Date.now()}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.submissions)) {
+        const dbItems = data.submissions.map((item: any) => ({
+          ...item,
+          isInternalApproved: item.isInternalApproved ?? true,
+          isExternalApproved: item.is_public_shared ?? false,
+        }));
+        const dbIds = new Set(dbItems.map((s: any) => s.id));
+        const localOnly = loadedList.filter((s: any) => !dbIds.has(s.id));
+        loadedList = [...dbItems, ...localOnly];
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`schoolpick_submissions_${cid}`, JSON.stringify(loadedList));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not sync submissions from server:", e);
+    }
+
+    setSubmissions(loadedList);
+  };
+
+  useEffect(() => {
+    syncSubmissionsForChallenge();
+
+    // 갤러리 검수/승인 또는 대시보드 탭 활성화 시 5초 주기 실시간 폴링
+    if (selectedChallengeId && (activeNav === "review" || activeNav === "dashboard")) {
+      const interval = setInterval(() => {
+        syncSubmissionsForChallenge();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedChallengeId, schoolCode, activeNav]);
 
   // 모달 상태
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -752,17 +768,22 @@ export default function TeacherAdminPage() {
 
   // 신규 사진전 등록
   const handleCreateChallenge = async (newChallenge: Challenge) => {
-    const updated = [newChallenge, ...challenges];
+    const enrichedChallenge: Challenge = {
+      ...newChallenge,
+      schoolCode: schoolCode || newChallenge.schoolCode || "JNE-3012",
+      schoolName: schoolName || newChallenge.schoolName || "우리 학교",
+    };
+    const updated = [enrichedChallenge, ...challenges.filter((c) => c.id !== enrichedChallenge.id)];
     setChallenges(updated);
-    setSelectedChallengeId(newChallenge.id);
-    setSelectedChallengeForQR(newChallenge);
+    setSelectedChallengeId(enrichedChallenge.id);
+    setSelectedChallengeForQR(enrichedChallenge);
     if (typeof window !== "undefined") {
       localStorage.setItem(`schoolpick_challenges_${schoolCode}`, JSON.stringify(updated));
 
       // 전역 챌린지 딕셔너리에도 즉시 저장 (학생 접속 링크 /c/[id] 호환 보장)
       try {
         const existingAll = JSON.parse(localStorage.getItem("schoolpick_all_challenges") || "{}");
-        existingAll[newChallenge.id] = newChallenge;
+        existingAll[enrichedChallenge.id] = enrichedChallenge;
         localStorage.setItem("schoolpick_all_challenges", JSON.stringify(existingAll));
       } catch (e) {
         console.warn("Failed to save to schoolpick_all_challenges:", e);
@@ -774,14 +795,14 @@ export default function TeacherAdminPage() {
       await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challenge: newChallenge }),
+        body: JSON.stringify({ challenge: enrichedChallenge }),
       });
     } catch (apiErr) {
       console.warn("Server challenge sync error, saved locally:", apiErr);
     }
 
     showToast(
-      `🎉 새로운 사진전 [${newChallenge.title}] 개설 완료!`,
+      `🎉 새로운 사진전 [${enrichedChallenge.title}] 개설 완료!`,
       "안내 포스터 출력 및 기안문 다운로드가 가능합니다.",
       "success"
     );
@@ -2161,9 +2182,18 @@ export default function TeacherAdminPage() {
                   <span className="w-3 h-3 bg-slate-900 rounded-xs inline-block" />
                   <span>■ 출품작 실시간 검수 & 3단계 전국 자랑하기 승인</span>
                 </h3>
-                <span className="text-xs font-bold text-slate-400">
-                  총 {submissions.length}개 작품
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => syncSubmissionsForChallenge()}
+                    className="text-[11px] font-black text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-xl border border-sky-300 cursor-pointer active:scale-95 transition-all"
+                  >
+                    🔄 실시간 새로고침
+                  </button>
+                  <span className="text-xs font-bold text-slate-400">
+                    총 {submissions.length}개 작품
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -3192,6 +3222,7 @@ export default function TeacherAdminPage() {
           setIsFeedbackOpen(true);
         }}
         schoolName={schoolName}
+        schoolCode={schoolCode}
         teacherName={teacherName}
       />
 
@@ -3217,6 +3248,7 @@ export default function TeacherAdminPage() {
             votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
             teacherTips: currentChallenge.teacherTips || "창체/자율활동 연계",
             schoolName: schoolName,
+            schoolCode: schoolCode,
           }}
         />
       )}

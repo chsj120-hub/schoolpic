@@ -33,6 +33,7 @@ interface ThemeAndOptionWizardModalProps {
   onCreate: (newChallenge: Challenge) => void;
   onOpenFeedback: () => void;
   schoolName?: string;
+  schoolCode?: string;
   teacherName?: string;
 }
 
@@ -69,6 +70,7 @@ export default function ThemeAndOptionWizardModal({
   onCreate,
   onOpenFeedback,
   schoolName = "우리초등학교",
+  schoolCode = "JNE-3012",
   teacherName = "선생님",
 }: ThemeAndOptionWizardModalProps) {
   // step 1: 테마 선택 & 교사용 상세 설명, step 2: 행정 옵션 설정
@@ -161,8 +163,8 @@ export default function ThemeAndOptionWizardModal({
       voteLimitType: voteMethod,
       isBlindSubmission: false,
       showGradeClassOnFrame,
-      schoolName: schoolName || "광주한재초등학교",
-      schoolCode: "JNE-3012",
+      schoolName: schoolName || "우리초등학교",
+      schoolCode: schoolCode || "JNE-3012",
       submissionCount: 0,
       totalVotes: 0,
       createdAt: new Date().toISOString().split("T")[0],
@@ -713,6 +715,7 @@ export default function ThemeAndOptionWizardModal({
           votingRange: `${votingStartDate} ${votingStartTime} ~ ${votingEndDate} ${votingEndTime}`,
           teacherTips: selectedTheme.teacherTips,
           schoolName: schoolName,
+          schoolCode: schoolCode,
         }}
       />
     </div>

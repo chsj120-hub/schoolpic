@@ -10,6 +10,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * 작품 목록 조회 API (GET)
  */
@@ -20,20 +22,21 @@ export async function GET(request: Request) {
     const schoolCode = searchParams.get("schoolCode");
     const publicOnly = searchParams.get("publicOnly") === "true";
 
-    // 1. 파일 영구 스토어에서 전체 출품작 로드
+    // 1. 파일/메모리 스토어에서 출품작 로드
     const storedList = getStoredSubmissions();
 
-    let filtered = storedList;
+    let filtered = [...storedList];
     if (publicOnly) {
       filtered = filtered.filter((s) => s.is_public_shared === true);
     } else if (exhibitionId) {
       filtered = filtered.filter((s) => s.challengeId === exhibitionId);
-    }
-    if (schoolCode) {
-      filtered = filtered.filter((s) => !s.schoolCode || s.schoolCode === schoolCode);
+    } else if (schoolCode) {
+      filtered = filtered.filter(
+        (s) => !s.schoolCode || s.schoolCode === "JNE-3012" || s.schoolCode === schoolCode
+      );
     }
 
-    // 2. Supabase가 연결되어 있는 경우 추가 동기화
+    // 2. Supabase DB에서 실시간 출품작 조회 및 동기화
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
@@ -70,22 +73,52 @@ export async function GET(request: Request) {
 
         if (publicOnly) {
           query = query.eq("is_public_shared", true);
-        } else if (exhibitionId) {
+        } else if (exhibitionId && UUID_REGEX.test(exhibitionId)) {
+          // exhibitionId가 실제 UUID 형식일 때만 DB 레벨에서 필터링 (문자열 ID 시 UUID 문법 에러 방지)
           query = query.eq("exhibition_id", exhibitionId);
         }
 
-        const { data } = await query;
-        if (data && Array.isArray(data)) {
-          const dbFormatted = data.map((row: any) => {
-            const student = row.student_profiles;
-            return {
+        const { data, error } = await query;
+        if (error) {
+          console.warn("Supabase submissions query error:", error.message);
+        } else if (data && Array.isArray(data)) {
+          const dbFormatted: any[] = [];
+
+          for (const row of data) {
+            const student: any = Array.isArray(row.student_profiles)
+              ? row.student_profiles[0]
+              : row.student_profiles;
+
+            // thumbnail_url에 저장된 메타데이터(challengeId, schoolCode, schoolName) 파싱
+            let meta: { challengeId?: string; schoolCode?: string; schoolName?: string } = {};
+            if (typeof row.thumbnail_url === "string" && row.thumbnail_url.startsWith("{")) {
+              try {
+                meta = JSON.parse(row.thumbnail_url);
+              } catch {}
+            }
+
+            const rowChallengeId = meta.challengeId || row.exhibition_id || "";
+
+            // 특정 사진전(exhibitionId) 요청인 경우:
+            // 1) rowChallengeId가 일치하거나
+            // 2) 이전 버전에서 exhibition_id가 null로 저장된 출품작(rowChallengeId === "")도 누락 없이 복구하여 표시
+            if (!publicOnly && exhibitionId) {
+              if (rowChallengeId && rowChallengeId !== exhibitionId) {
+                continue;
+              }
+            }
+
+            dbFormatted.push({
               id: row.id,
-              challengeId: row.exhibition_id || exhibitionId || "",
+              challengeId: rowChallengeId || exhibitionId || "culture-8",
+              schoolCode: meta.schoolCode || schoolCode || "JNE-3012",
+              schoolName: meta.schoolName || "우리 학교",
               studentGrade: student?.grade || 1,
               studentClass: student?.class_num || 1,
               studentNumber: student?.student_num || 1,
               nickname: student?.nickname || "익명 작가",
               title: row.title,
+              caption: row.artist_note || undefined,
               artistNote: row.artist_note || "",
               imageUrl: row.image_url,
               votes: row.vote_count || 0,
@@ -98,17 +131,20 @@ export async function GET(request: Request) {
               selectedFrame: row.selected_frame,
               specialAwardTitle: row.special_award_title,
               specialAwardReason: row.special_award_reason,
-              is_public_shared: row.is_public_shared,
-            };
-          });
+              student_consent: row.student_consent ?? false,
+              parent_consent: row.parent_consent ?? false,
+              teacher_approval: row.teacher_approval ?? false,
+              is_public_shared: row.is_public_shared ?? false,
+            });
+          }
 
-          // 중복 병합
-          const existingIds = new Set(filtered.map((s) => s.id));
-          dbFormatted.forEach((d) => {
-            if (!existingIds.has(d.id)) {
-              filtered.push(d);
-            }
-          });
+          // DB 결과와 로컬 스토어 병합 (DB 우선)
+          const dbIds = new Set(dbFormatted.map((d) => d.id));
+          const merged = [
+            ...dbFormatted,
+            ...filtered.filter((localItem) => !dbIds.has(localItem.id)),
+          ];
+          filtered = merged;
         }
       } catch (dbErr) {
         console.warn("Supabase fetch warning, using file store:", dbErr);
@@ -129,7 +165,7 @@ export async function GET(request: Request) {
 }
 
 /**
- * 작품 출품 API (POST) - 파일 영구 스토어 + Cloudflare R2 + Supabase DB
+ * 작품 출품 API (POST) - Cloudflare R2 + Supabase DB + 파일/메모리 스토어
  */
 export async function POST(request: Request) {
   try {
@@ -189,7 +225,7 @@ export async function POST(request: Request) {
     const subId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     // 2. 통합 출품작 객체 생성
-    const newSubmission = {
+    const newSubmission: any = {
       id: subId,
       challengeId: realExhibitionId,
       schoolCode,
@@ -199,6 +235,7 @@ export async function POST(request: Request) {
       studentNumber: Number(studentNumber) || 1,
       nickname: studentNickname || "새싹 작가",
       title: cleanTitle,
+      caption: cleanNote || undefined,
       artistNote: cleanNote,
       imageUrl: finalImageUrl,
       votes: 0,
@@ -213,28 +250,7 @@ export async function POST(request: Request) {
       is_public_shared: false,
     };
 
-    // 3. 파일 영구 스토어에 즉시 저장 (.data/submissions.json)
-    // 1인 1작품 원칙: 동일 사진전에서 같은 학년/반/번호의 기존 작품이 있으면 교체
-    const storedList = getStoredSubmissions();
-    const existingIdx = storedList.findIndex(
-      (s) =>
-        s.challengeId === realExhibitionId &&
-        Number(s.studentGrade) === Number(newSubmission.studentGrade) &&
-        Number(s.studentClass) === Number(newSubmission.studentClass) &&
-        Number(s.studentNumber) === Number(newSubmission.studentNumber)
-    );
-
-    if (existingIdx >= 0) {
-      newSubmission.id = storedList[existingIdx].id;
-      newSubmission.votes = storedList[existingIdx].votes || 0;
-      newSubmission.studentVotes = storedList[existingIdx].studentVotes || 0;
-      newSubmission.teacherVotes = storedList[existingIdx].teacherVotes || 0;
-      newSubmission.parentVotes = storedList[existingIdx].parentVotes || 0;
-    }
-
-    saveSubmission(newSubmission);
-
-    // 4. Supabase DB 연결되어 있을 경우 동기화
+    // 3. Supabase DB 연결되어 있을 경우 영구 저장
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
@@ -273,6 +289,13 @@ export async function POST(request: Request) {
 
           if (studentData) {
             studentId = studentData.id;
+            await supabase
+              .from("student_profiles")
+              .update({
+                nickname: studentNickname || "새싹 작가",
+                ...(studentPin ? { pin_code_hash: String(studentPin).trim().slice(0, 4) } : {}),
+              })
+              .eq("id", studentId);
           } else {
             const { data: newStudent } = await supabase
               .from("student_profiles")
@@ -290,22 +313,75 @@ export async function POST(request: Request) {
           }
         }
 
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realExhibitionId);
+        // exhibitions 테이블에서 UUID 조회 (없으면 null 허용하되 thumbnail_url에 메타데이터 기록)
+        let resolvedExhibitionUuid: string | null = null;
+        if (UUID_REGEX.test(realExhibitionId)) {
+          resolvedExhibitionUuid = realExhibitionId;
+        } else {
+          const { data: exData } = await supabase
+            .from("exhibitions")
+            .select("id")
+            .eq("theme_id", realExhibitionId)
+            .maybeSingle();
+          if (exData?.id) {
+            resolvedExhibitionUuid = exData.id;
+          }
+        }
 
-        await supabase.from("submissions").insert({
-          exhibition_id: isUuid ? realExhibitionId : null,
-          student_id: studentId,
-          title: cleanTitle,
-          artist_note: cleanNote,
-          image_url: finalImageUrl,
-          selected_frame: selectedFrame || "기본 프레임",
-          student_consent: studentConsent,
-          vote_count: 0,
+        // thumbnail_url 컬럼에 challengeId 및 schoolCode 메타데이터 JSON 보관 (UUID가 아닌 테마 ID도 100% 매칭 보장)
+        const metaJson = JSON.stringify({
+          challengeId: realExhibitionId,
+          schoolCode,
+          schoolName,
         });
+
+        const { data: inserted, error: insertError } = await supabase
+          .from("submissions")
+          .insert({
+            exhibition_id: resolvedExhibitionUuid,
+            student_id: studentId,
+            title: cleanTitle,
+            artist_note: cleanNote,
+            image_url: finalImageUrl,
+            thumbnail_url: metaJson,
+            selected_frame: selectedFrame || "기본 프레임",
+            student_consent: studentConsent,
+            vote_count: 0,
+            student_votes: 0,
+            teacher_votes: 0,
+            parent_votes: 0,
+          })
+          .select("*")
+          .single();
+
+        if (!insertError && inserted) {
+          newSubmission.id = inserted.id;
+        } else if (insertError) {
+          console.warn("Supabase submission insert warning:", insertError.message);
+        }
       } catch (dbErr) {
         console.warn("Supabase submission sync warning:", dbErr);
       }
     }
+
+    // 4. 파일/메모리 스토어에도 저장
+    const storedList = getStoredSubmissions();
+    const existingIdx = storedList.findIndex(
+      (s) =>
+        s.challengeId === realExhibitionId &&
+        Number(s.studentGrade) === Number(newSubmission.studentGrade) &&
+        Number(s.studentClass) === Number(newSubmission.studentClass) &&
+        Number(s.studentNumber) === Number(newSubmission.studentNumber)
+    );
+
+    if (existingIdx >= 0) {
+      newSubmission.votes = storedList[existingIdx].votes || 0;
+      newSubmission.studentVotes = storedList[existingIdx].studentVotes || 0;
+      newSubmission.teacherVotes = storedList[existingIdx].teacherVotes || 0;
+      newSubmission.parentVotes = storedList[existingIdx].parentVotes || 0;
+    }
+
+    saveSubmission(newSubmission);
 
     return NextResponse.json({
       success: true,
@@ -340,9 +416,14 @@ export async function PATCH(request: Request) {
     updateSubmissionStatus(id, updates);
 
     const supabase = getSupabaseServerClient();
-    if (supabase) {
+    if (supabase && UUID_REGEX.test(id)) {
       try {
-        await supabase.from("submissions").update(updates).eq("id", id);
+        const dbUpdates: any = {};
+        if (typeof is_public_shared === "boolean") dbUpdates.is_public_shared = is_public_shared;
+        if (typeof teacher_approval === "boolean") dbUpdates.teacher_approval = teacher_approval;
+        if (special_award_title !== undefined) dbUpdates.special_award_title = special_award_title;
+        if (special_award_reason !== undefined) dbUpdates.special_award_reason = special_award_reason;
+        await supabase.from("submissions").update(dbUpdates).eq("id", id);
       } catch (e) {}
     }
 

@@ -167,18 +167,21 @@ export default function StudentChallengePage() {
   useEffect(() => {
     async function loadSubmissions() {
       try {
-        const res = await fetch(`/api/submissions?exhibitionId=${challengeId}`);
+        const res = await fetch(
+          `/api/submissions?exhibitionId=${encodeURIComponent(challengeId)}&_t=${Date.now()}`,
+          { cache: "no-store" }
+        );
         const data = await res.json();
         if (data.success && Array.isArray(data.submissions)) {
-          // 해당 사진전 challengeId와 일치하는 출품작만 엄격 격리
-          const matching = data.submissions.filter((s: any) => s.challengeId === challengeId);
-          setSubmissions(matching);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
+          const matching = data.submissions.filter(
+            (s: any) => !s.challengeId || s.challengeId === challengeId
+          );
+          if (matching.length > 0) {
+            setSubmissions(matching);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(`schoolpick_submissions_${challengeId}`, JSON.stringify(matching));
+            }
           }
-        } else {
-          // 신규 개설된 사진전은 출품작 0건 빈 갤러리 유지
-          setSubmissions([]);
         }
       } catch (e) {
         console.warn("Could not load submissions from server, fallback to local:", e);
