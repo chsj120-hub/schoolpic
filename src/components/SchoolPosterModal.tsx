@@ -71,9 +71,84 @@ export default function SchoolPosterModal({
     ? "QR을 스캔해 사진전에 참가해보세요"
     : "QR을 스캔해 우리 아이에게 따뜻한 공감을 보내주세요";
 
-  // 브라우저 A4 인쇄
+  // 브라우저 A4 인쇄 (새 창 격리 방식으로 배경 학생 게시물 노출 100% 원천 차단)
   const handlePrint = () => {
-    window.print();
+    if (!posterRef.current) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    const doc = printWindow.document;
+    const posterHtml = posterRef.current.innerHTML;
+    const titleText = `스쿨픽_${targetAudience === "student" ? "교내홍보포스터" : "가정통신문_학부모투표안내"}_${schoolName}_${challenge.title}`;
+
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${titleText}</title>
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm 12mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background-color: #ffffff;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+            }
+            .poster-box {
+              width: 100%;
+              max-width: 185mm;
+              height: 265mm;
+              background: #FFFEFA;
+              border: 1.5px solid #CBD5E1;
+              border-radius: 16px;
+              padding: 24px 28px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              position: relative;
+              overflow: hidden;
+            }
+            img {
+              max-width: 100%;
+              height: auto;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="poster-box">
+            ${posterHtml}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+                window.close();
+              }, 350);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    doc.close();
   };
 
   // 실제 A4 PDF 생성 및 다운로드 (html2canvas + jsPDF)
@@ -104,6 +179,32 @@ export default function SchoolPosterModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-poster,
+          #printable-poster * {
+            visibility: visible !important;
+          }
+          #printable-poster {
+            position: fixed !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 180mm !important;
+            max-width: none !important;
+            height: 260mm !important;
+            margin: 0 !important;
+            padding: 24px !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+            background: #fffefa !important;
+            z-index: 999999 !important;
+          }
+        }
+      `}</style>
       <div className="bg-white w-full max-w-2xl rounded-[2.5rem] border-[3px] border-slate-900 shadow-[0_16px_0_0_#1E293B] overflow-hidden relative animate-in fade-in zoom-in-95 duration-200 my-auto flex flex-col max-h-[95vh]">
         
         {/* 상단 컨트롤 헤더 */}

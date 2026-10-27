@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getStoredSubmissions, updateSubmissionStatus } from "@/lib/serverDataStore";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "작품 ID가 필요합니다." }, { status: 400 });
     }
 
+    // 로컬 파일 스토어 투표수 동기화
+    const stored = getStoredSubmissions();
+    const target = stored.find((s) => s.id === submissionId);
+    if (target) {
+      const voteDelta = action === "VOTE" ? 1 : -1;
+      const currentVotes = Math.max(0, (target.votes || 0) + voteDelta);
+      const studentVotes = voterType === "STUDENT" ? Math.max(0, (target.studentVotes || 0) + voteDelta) : (target.studentVotes || 0);
+      const teacherVotes = voterType === "TEACHER" ? Math.max(0, (target.teacherVotes || 0) + voteDelta) : (target.teacherVotes || 0);
+      const parentVotes = voterType === "PARENT" ? Math.max(0, (target.parentVotes || 0) + voteDelta) : (target.parentVotes || 0);
+
+      updateSubmissionStatus(submissionId, {
+        votes: currentVotes,
+        studentVotes,
+        teacherVotes,
+        parentVotes,
+      });
+    }
+
     const supabase = getSupabaseServerClient();
     if (!supabase) {
-      return NextResponse.json({ success: true, source: "LOCAL_FALLBACK" });
+      return NextResponse.json({ success: true, source: "LOCAL_STORE" });
     }
 
     // UUID 형태인지 검사 (샘플 목데이터는 UUID가 아니므로 안전 처리)

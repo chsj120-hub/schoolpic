@@ -293,7 +293,7 @@ export default function TeacherAuthPage() {
   // -------------------------------------------------------------
   // 회원가입 Step 4: 가입 최종 완료
   // -------------------------------------------------------------
-  const handleSignupFinalSubmit = (e: React.FormEvent) => {
+  const handleSignupFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep4Error("");
 
@@ -307,44 +307,59 @@ export default function TeacherAuthPage() {
       return;
     }
 
-    if (!selectedSchool) return;
+    if (!selectedSchool) {
+      setStep4Error("선택된 학교 정보가 없습니다.");
+      return;
+    }
 
-    const teacherAccount: TeacherAccount = {
-      email: signupEmail,
-      name: teacherName,
-      schoolId: selectedSchool.id,
-      schoolName: selectedSchool.name,
-      schoolCode: assignedCode,
-      schoolRegion: selectedSchool.region,
-      schoolLevel: selectedSchool.level,
-      roleGrade: teacherRole,
-      isJoinedExisting: isExistingSchool,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Supabase 클라우드 데이터베이스에 학교 및 교사 정보 자동 동기화
     try {
-      fetch("/api/auth/teacher", {
+      // 서버 영구 스토어 및 Supabase에 회원가입 등록
+      const res = await fetch("/api/auth/teacher", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "SIGNUP",
           email: signupEmail,
-          name: teacherName,
+          password: newPassword,
+          name: teacherName || "선생님",
           schoolName: selectedSchool.name,
           schoolCode: assignedCode,
           schoolRegion: selectedSchool.region,
-          roleGrade: teacherRole,
+          schoolLevel: selectedSchool.level || "E",
+          roleGrade: teacherRole || "담임교사",
         }),
-      }).catch(console.warn);
-    } catch (e) {}
+      });
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("schoolpick_teacher_account", JSON.stringify(teacherAccount));
-      localStorage.setItem("schoolpick_teacher", JSON.stringify(teacherAccount));
+      const data = await res.json();
+      if (!data.success) {
+        setStep4Error(data.message || "회원가입에 실패했습니다.");
+        return;
+      }
+
+      const teacherAccount: TeacherAccount = data.account || {
+        email: signupEmail,
+        name: teacherName || "선생님",
+        schoolId: selectedSchool.id,
+        schoolName: selectedSchool.name,
+        schoolCode: assignedCode,
+        schoolRegion: selectedSchool.region,
+        schoolLevel: selectedSchool.level,
+        roleGrade: teacherRole || "담임교사",
+        isJoinedExisting: isExistingSchool,
+        createdAt: new Date().toISOString(),
+      };
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("schoolpick_teacher_account", JSON.stringify(teacherAccount));
+        localStorage.setItem("schoolpick_teacher", JSON.stringify(teacherAccount));
+      }
+
+      // 관리자 센터 대시보드로 즉시 이동
+      window.location.href = "/teacher";
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setStep4Error("회원가입 처리 중 통신 오류가 발생했습니다.");
     }
-
-    // 관리자 센터 대시보드로 즉시 이동
-    window.location.href = "/teacher";
   };
 
   return (
@@ -917,14 +932,46 @@ export default function TeacherAuthPage() {
             </div>
           )}
 
-          {/* 학생 온보딩으로 이동 링크 */}
-          <div className="text-center pt-2 border-t border-slate-100">
-            <a
-              href="/student"
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-700 underline underline-offset-2"
-            >
-              학생이신가요? 학생 사진전 입장 카드로 가기 →
-            </a>
+          {/* 학생 온보딩으로 이동 링크 및 계정 초기화 도구 */}
+          <div className="text-center pt-2 border-t border-slate-100 space-y-2">
+            <div>
+              <a
+                href="/student"
+                className="text-[11px] font-bold text-slate-400 hover:text-slate-700 underline underline-offset-2"
+              >
+                학생이신가요? 학생 사진전 입장 카드로 가기 →
+              </a>
+            </div>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm("관리자(chsj120@gmail.com)를 제외한 모든 교사 계정 및 로컬 브라우저 세션을 초기화할까요?")) {
+                    try {
+                      const res = await fetch("/api/auth/teacher", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "RESET_ALL_EXCEPT_ADMIN" }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        localStorage.removeItem("schoolpick_teacher");
+                        localStorage.removeItem("schoolpick_teacher_account");
+                        alert("✅ 관리자 외 모든 계정이 성공적으로 초기화되었습니다.\n신규 교사 가입부터 다시 진행하실 수 있습니다.");
+                        setAuthMode("signup");
+                        setSignupStep(1);
+                      }
+                    } catch (e) {
+                      alert("초기화 중 오류가 발생했습니다.");
+                    }
+                  }
+                }}
+                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1 rounded-full border border-rose-200 transition-all cursor-pointer inline-flex items-center gap-1"
+              >
+                <span>🔄 관리자 제외 계정 전체 초기화 (테스트용)</span>
+              </button>
+            </div>
           </div>
 
         </div>

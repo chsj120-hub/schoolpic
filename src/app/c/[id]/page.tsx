@@ -256,15 +256,38 @@ export default function StudentChallengePage() {
   // 고화질 전체보기(라이트박스) 모달 상태 (짤림 방지 전체보기)
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoSubmission | null>(null);
 
-  // 기간 판단 로직 (날짜 및 status 기반 하이브리드)
-  const today = new Date().toISOString().slice(0, 10);
-  const subStart = challenge.submissionStartDate || "2026-10-25";
-  const subEnd = challenge.submissionEndDate || "2026-10-31";
-  const voteStart = challenge.votingStartDate || "2026-11-01";
-  const voteEnd = challenge.votingEndDate || "2026-11-07";
+  // 기간 판단 로직 (설정된 날짜 및 시간과 연동되는 실시간 하이브리드 판정)
+  const parseDateTime = (dateStr?: string, timeStr?: string, defaultHour: string = "00:00") => {
+    if (!dateStr) return null;
+    const time = timeStr && timeStr.trim().length >= 4 ? timeStr.trim() : defaultHour;
+    const timeFormatted = time.length === 5 ? `${time}:00` : time;
+    const d = new Date(`${dateStr}T${timeFormatted}`);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
-  const isDateSubmitting = today >= subStart && today <= subEnd;
-  const isDateVoting = today >= voteStart && today <= voteEnd;
+  const formatDateTimeDisplay = (dateStr?: string, timeStr?: string) => {
+    if (!dateStr) return "";
+    try {
+      const parts = dateStr.split("-").map(Number);
+      if (parts.length === 3) {
+        const [y, m, d] = parts;
+        const dayOfWeek = ["일", "월", "화", "수", "목", "금", "토"][new Date(y, m - 1, d).getDay()];
+        const timePart = timeStr ? ` ${timeStr}` : "";
+        return `${m}.${String(d).padStart(2, "0")}(${dayOfWeek})${timePart}`;
+      }
+    } catch {}
+    return dateStr + (timeStr ? ` ${timeStr}` : "");
+  };
+
+  const now = new Date();
+  const subStartDt = parseDateTime(challenge.submissionStartDate, challenge.submissionStartTime, "00:00");
+  const subEndDt = parseDateTime(challenge.submissionEndDate, challenge.submissionEndTime, "23:59");
+  const voteStartDt = parseDateTime(challenge.votingStartDate, challenge.votingStartTime, "00:00");
+  const voteEndDt = parseDateTime(challenge.votingEndDate, challenge.votingEndTime, "23:59");
+
+  // 설정된 일시(날짜 + 시간)와 실시간 분 단위 정밀 연동 판정
+  const isDateSubmitting = subStartDt && subEndDt ? now >= subStartDt && now <= subEndDt : false;
+  const isDateVoting = voteStartDt && voteEndDt ? now >= voteStartDt && now <= voteEndDt : false;
 
   // 출품 기간 및 투표 기간 활성화 여부
   const isSubmittingActive =
@@ -279,7 +302,9 @@ export default function StudentChallengePage() {
   // 3) 투표 전용 기간
   const isVoteOnly = !isSubmittingActive && isVotingActive;
   // 4) 행사 종료 여부
-  const isEnded = challenge.status === "ENDED" || (!isSubmittingActive && !isVotingActive && today > voteEnd);
+  const isEnded =
+    challenge.status === "ENDED" ||
+    (!isSubmittingActive && !isVotingActive && (voteEndDt ? now > voteEndDt : false));
 
   // 하위 호환용
   const isSubmittingPeriod = isSubmittingActive;
@@ -1114,10 +1139,16 @@ export default function StudentChallengePage() {
               <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
                 isSubmittingPeriod
                   ? "bg-sky-100 text-sky-800 border border-sky-300"
-                  : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : isVotingPeriod
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-slate-100 text-slate-700 border border-slate-300"
               }`}>
                 <Clock className="w-3 h-3" />
-                {isSubmittingPeriod ? `접수 마감 ${challenge.submissionEndDate}` : `전교 투표 중 (~${challenge.votingEndDate})`}
+                {isSubmittingPeriod
+                  ? `접수 마감 ${formatDateTimeDisplay(challenge.submissionEndDate, challenge.submissionEndTime)}`
+                  : isVotingPeriod
+                  ? `전교 투표 중 (~${formatDateTimeDisplay(challenge.votingEndDate, challenge.votingEndTime)})`
+                  : `행사 종료`}
               </span>
             </div>
 
@@ -1186,6 +1217,27 @@ export default function StudentChallengePage() {
 
             {isGuideOpen && (
               <div className="space-y-2 pt-1 border-t border-amber-200/80 animate-in fade-in duration-150">
+                {/* 사진전 일정 안내 */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-black text-amber-900 block">
+                    ⏰ 사진전 진행 일정 (선생님 지정 시간 연동):
+                  </span>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] space-y-1 font-bold text-slate-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-800">📸 작품 접수 기간</span>
+                      <span className="text-slate-900 font-black">
+                        {formatDateTimeDisplay(challenge.submissionStartDate, challenge.submissionStartTime)} ~ {formatDateTimeDisplay(challenge.submissionEndDate, challenge.submissionEndTime)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sky-700">🗳️ 전교 투표 기간</span>
+                      <span className="text-slate-900 font-black">
+                        {formatDateTimeDisplay(challenge.votingStartDate, challenge.votingStartTime)} ~ {formatDateTimeDisplay(challenge.votingEndDate, challenge.votingEndTime)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 챌린지 룰 */}
                 <div className="space-y-1">
                   <span className="text-[11px] font-black text-amber-900 block">
@@ -1419,11 +1471,21 @@ export default function StudentChallengePage() {
                 <div>
                   <span className="text-[10px] text-slate-400 block">현재 접수 현황</span>
                   <span className="text-sm font-black text-amber-600">{submissions.length}명 참여 중 🚀</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    마감: {formatDateTimeDisplay(challenge.submissionEndDate, challenge.submissionEndTime)}
+                  </span>
                 </div>
-                <div className="h-6 w-px bg-slate-200" />
+                <div className="h-8 w-px bg-slate-200" />
                 <div>
-                  <span className="text-[10px] text-slate-400 block">전교 투표 오픈</span>
-                  <span className="text-sm font-black text-sky-600">{challenge.votingStartDate || "투표일"} 오픈 예정 🗳️</span>
+                  <span className="text-[10px] text-slate-400 block">전교 투표 오픈 일시</span>
+                  <span className="text-sm font-black text-sky-600">
+                    {challenge.votingStartDate
+                      ? `${formatDateTimeDisplay(challenge.votingStartDate, challenge.votingStartTime)} 오픈 예정 🗳️`
+                      : "투표 오픈 예정 🗳️"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    투표 종료: {formatDateTimeDisplay(challenge.votingEndDate, challenge.votingEndTime)}
+                  </span>
                 </div>
               </div>
 
